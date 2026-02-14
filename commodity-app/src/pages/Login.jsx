@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -7,8 +7,14 @@ export default function Login() {
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
-    const { signIn } = useAuth()
+    const { signIn, user } = useAuth()
     const navigate = useNavigate()
+
+    useEffect(() => {
+        if (user) {
+            navigate('/', { replace: true })
+        }
+    }, [user, navigate])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -20,9 +26,8 @@ export default function Login() {
         if (err) {
             setError(err.message)
             setLoading(false)
-        } else {
-            navigate('/')
         }
+        // Don't navigate here - let the useEffect handle it when user state updates
     }
 
     return (

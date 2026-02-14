@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -8,8 +8,14 @@ export default function Signup() {
     const [fullName, setFullName] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
-    const { signUp } = useAuth()
+    const { signUp, user } = useAuth()
     const navigate = useNavigate()
+
+    useEffect(() => {
+        if (user) {
+            navigate('/', { replace: true })
+        }
+    }, [user, navigate])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -21,9 +27,8 @@ export default function Signup() {
         if (err) {
             setError(err.message)
             setLoading(false)
-        } else {
-            navigate('/')
         }
+        // Don't navigate here - let the useEffect handle it when user state updates
     }
 
     return (
