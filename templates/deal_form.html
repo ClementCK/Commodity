@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Deal - Commodity Deal Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .required {
+            color: #dc3545;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            margin-left: 10px;
+        }
+        
+        .btn-secondary:hover {
+            box-shadow: 0 10px 20px rgba(108, 117, 125, 0.4);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .container {
+                padding: 20px;
+            }
+        }
+
+        input[type="text"]:valid,
+        input[type="number"]:valid,
+        input[type="date"]:valid,
+        select:valid,
+        textarea:valid {
+            border-color: #28a745;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .form-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        
+        <div class="header">
+            <h1>➕ Add New Deal</h1>
+            <p class="subtitle">Enter deal information manually</p>
+        </div>
+        
+        <div id="alert" style="display: none;"></div>
+        
+        <form id="deal-form">
+            <!-- Basic Information -->
+            <div class="form-group">
+                <label for="commodity_type">Commodity Type <span class="required">*</span></label>
+                <input type="text" id="commodity_type" name="commodity_type" required 
+                       placeholder="e.g., Gold, Copper Cathodes, Aluminum Ingots">
+                <div class="help-text">What commodity is being traded?</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="source_name">Source/Contact <span class="required">*</span></label>
+                <select id="source_name" name="source_name" required>
+                    <option value="">-- Select Source --</option>
+                </select>
+                <div class="help-text">Who sent you this deal?</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="deal_text">Deal Details</label>
+                <textarea id="deal_text" name="deal_text" 
+                          placeholder="Paste raw deal message from WhatsApp/WeChat here, or add any additional details..."></textarea>
+                <div class="help-text">Original message or additional context</div>
+            </div>
+            
+            <!-- Pricing -->
+<!-- Pricing -->
+<div class="form-group">
+    <label for="price_type">Price Type</label>
+    <select id="price_type" name="price_type" onchange="togglePriceFields()">
+        <option value="lme_discount">LME Discount (for metals)</option>
+        <option value="fixed_price">Fixed Price</option>
+    </select>
+</div>
+
+<!-- LME Discount Fields (shown by default) -->
+<div id="lme-fields">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="gross_discount">Gross Discount (%)</label>
+            <input type="number" step="0.1" id="gross_discount" name="gross_discount" 
+                   placeholder="-12.0">
+            <div class="help-text">e.g., -12% for LME -12%</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="commission">Commission (%)</label>
+            <input type="number" step="0.1" id="commission" name="commission" 
+                   placeholder="3.0">
+            <div class="help-text">Your commission</div>
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="net_discount">Net Discount (%)</label>
+        <input type="number" step="0.1" id="net_discount" name="net_discount" 
+               placeholder="-9.0" readonly style="background: #f5f5f5;">
+        <div class="help-text">Auto-calculated: Gross - Commission</div>
+    </div>
+    
+    <div class="form-group">
+        <label for="price_currency">Currency</label>
+        <select id="price_currency" name="price_currency">
+            <option value="USD">USD</option>
+            <option value="CNY">CNY</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+        </select>
+    </div>
+</div>
+
+<!-- Fixed Price Fields (hidden by default) -->
+<div id="fixed-price-fields" style="display: none;">
+    <div class="form-row">
+        <div class="form-group">
+            <label for="price">Price</label>
+            <input type="number" step="0.01" id="price" name="price" 
+                   placeholder="1970.00">
+            <div class="help-text">Fixed price per unit</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="price_currency_fixed">Currency</label>
+            <select id="price_currency_fixed" name="price_currency">
+                <option value="USD">USD</option>
+                <option value="CNY">CNY</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+            </select>
+        </div>
+    </div>
+</div>
+            
+            <!-- Quantity -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="quantity">Quantity</label>
+                    <input type="number" step="0.01" id="quantity" name="quantity" 
+                           placeholder="500">
+                    <div class="help-text">Amount of commodity</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantity_unit">Unit</label>
+                    <select id="quantity_unit" name="quantity_unit">
+                        <option value="kg">kg (kilograms)</option>
+                        <option value="MT">MT (metric tons)</option>
+                        <option value="tons">tons</option>
+                        <option value="oz">oz (ounces)</option>
+                        <option value="lbs">lbs (pounds)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Origin & Shipping -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="origin_country">Origin Country</label>
+                    <input type="text" id="origin_country" name="origin_country" 
+                           placeholder="e.g., Ghana, China, Russia">
+                    <div class="help-text">Where commodity originates</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="shipping_terms">Shipping Terms</label>
+                    <input type="text" id="shipping_terms" name="shipping_terms" 
+                           placeholder="e.g., CIF, FOB, DDP">
+                    <div class="help-text">Incoterms</div>
+                </div>
+            </div>
+            
+            <!-- Payment Method -->
+            <div class="form-group">
+                <label for="payment_method">Payment Method</label>
+                <select id="payment_method" name="payment_method">
+                    <option value="">-- Select Payment Method --</option>
+                    <option value="SBLC">SBLC (Standby Letter of Credit)</option>
+                    <option value="LC">LC (Letter of Credit)</option>
+                    <option value="DLC">DLC (Documentary Letter of Credit)</option>
+                    <option value="BCL">BCL (Bank Comfort Letter)</option>
+                    <option value="Wire Transfer">Wire Transfer</option>
+                    <option value="T/T">T/T (Telegraphic Transfer)</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            
+            <!-- Date & Status -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="date_received">Date Received <span class="required">*</span></label>
+                    <input type="date" id="date_received" name="date_received" required>
+                    <div class="help-text">When did you receive this deal?</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        <option value="unassigned">Unassigned</option>
+                        <option value="under_review">Under Review</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="on_hold">On Hold</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Additional Notes -->
+            <div class="form-group">
+                <label for="additional_notes">Additional Notes</label>
+                <textarea id="additional_notes" name="additional_notes" 
+                          placeholder="Any other important information, concerns, or next steps..."></textarea>
+            </div>
+            
+            <!-- Buttons -->
+            <div class="button-group">
+                <button type="submit" class="btn">💾 Save Deal</button>
+                <a href="/" class="btn btn-secondary" style="text-decoration: none; display: inline-block; text-align: center;">Cancel</a>
+            </div>
+            
+            <div class="loading" id="loading">
+                <p>Saving deal...</p>
+            </div>
+        </form>
+    </div>
+    
+    <script>
+        // Set today's date as default
+        document.getElementById('date_received').valueAsDate = new Date();
+        
+        // Load sources for dropdown
+        async function loadSources() {
+            try {
+                const response = await fetch('/api/sources');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('source_name');
+                    data.sources.forEach(source => {
+                        const option = document.createElement('option');
+                        option.value = source.name;
+                        option.textContent = `${source.name} (${source.reliability_rating}/10)`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading sources:', error);
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('deal-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Show loading
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('alert').style.display = 'none';
+            
+            // Get form data
+const formData = new FormData(e.target);
+const data = {};
+formData.forEach((value, key) => {
+    data[key] = value || null;
+});
+
+// Handle price type - clean up based on selection
+const priceType = data.price_type;
+
+if (priceType === 'lme_discount') {
+    // Keep LME fields, remove fixed price
+    data.price = null;
+    // Ensure LME fields are numbers
+    if (data.gross_discount) data.gross_discount = parseFloat(data.gross_discount);
+    if (data.commission) data.commission = parseFloat(data.commission);
+    if (data.net_discount) data.net_discount = parseFloat(data.net_discount);
+} else {
+    // Keep fixed price, remove LME fields
+    data.gross_discount = null;
+    data.commission = null;
+    data.net_discount = null;
+    // Ensure price is a number
+    if (data.price) data.price = parseFloat(data.price);
+}
+            
+            // Get source reliability
+            const sourceName = data.source_name;
+            try {
+                const sourceResponse = await fetch('/api/sources');
+                const sourceData = await sourceResponse.json();
+                if (sourceData.success) {
+                    const source = sourceData.sources.find(s => s.name === sourceName);
+                    if (source) {
+                        data.source_reliability = source.reliability_rating;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching source reliability:', error);
+            }
+            // DEBUG: Log what we're sending
+console.log("Sending data:", data);
+            // Submit to API
+            try {
+                const response = await fetch('/api/deals', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                document.getElementById('loading').classList.remove('active');
+                
+                if (result.success) {
+                    // Show success message
+                    const alert = document.getElementById('alert');
+                    alert.className = 'alert alert-success';
+                    alert.textContent = `✅ Deal #${result.deal_id} created successfully!`;
+                    alert.style.display = 'block';
+                    
+                    // Redirect to dashboard after 1.5 seconds
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    // Show error
+                    const alert = document.getElementById('alert');
+                    alert.className = 'alert alert-error';
+                    alert.textContent = `❌ Error: ${result.error}`;
+                    alert.style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('loading').classList.remove('active');
+                const alert = document.getElementById('alert');
+                alert.className = 'alert alert-error';
+                alert.textContent = `❌ Error: ${error.message}`;
+                alert.style.display = 'block';
+            }
+        });
+        
+        // Load sources when page loads
+        loadSources();
+// Toggle between LME discount and fixed price
+function togglePriceFields() {
+    const priceType = document.getElementById('price_type').value;
+    const lmeFields = document.getElementById('lme-fields');
+    const fixedFields = document.getElementById('fixed-price-fields');
+    
+    if (priceType === 'lme_discount') {
+        lmeFields.style.display = 'block';
+        fixedFields.style.display = 'none';
+    } else {
+        lmeFields.style.display = 'none';
+        fixedFields.style.display = 'block';
+    }
+}
+
+// Auto-calculate net discount
+document.getElementById('gross_discount').addEventListener('input', calculateNetDiscount);
+document.getElementById('commission').addEventListener('input', calculateNetDiscount);
+
+function calculateNetDiscount() {
+    const gross = parseFloat(document.getElementById('gross_discount').value) || 0;
+    const commission = parseFloat(document.getElementById('commission').value) || 0;
+    const net = gross - commission;
+    document.getElementById('net_discount').value = net.toFixed(1);
+}
+    </script>
+</body>
+</html>

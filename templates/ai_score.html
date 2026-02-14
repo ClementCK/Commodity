@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Scoring - Commodity Deal Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .back-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* Loading State */
+        .loading-container {
+            text-align: center;
+            padding: 80px 40px;
+        }
+
+        .loading-spinner {
+            width: 80px;
+            height: 80px;
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .loading-subtext {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Score Display */
+        .score-hero {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 60px;
+            padding: 60px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .score-circle-container {
+            position: relative;
+        }
+
+        .score-circle {
+            width: 250px;
+            height: 250px;
+        }
+
+        .score-circle svg {
+            transform: rotate(-90deg);
+        }
+
+        .score-circle-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.2);
+            stroke-width: 15;
+        }
+
+        .score-circle-progress {
+            fill: none;
+            stroke: #fff;
+            stroke-width: 15;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 2s ease;
+        }
+
+        .score-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+
+        .score-value {
+            font-size: 72px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .score-label {
+            font-size: 14px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 8px;
+        }
+
+        .score-details {
+            color: white;
+            max-width: 500px;
+        }
+
+        .score-details h2 {
+            font-size: 28px;
+            margin-bottom: 15px;
+        }
+
+        .score-details p {
+            font-size: 16px;
+            line-height: 1.7;
+            opacity: 0.95;
+            margin-bottom: 20px;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 13px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .risk-low {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .risk-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .risk-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 14px 28px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tab-panel {
+            background: #f8f9fa;
+            padding: 40px;
+            border-radius: 15px;
+            min-height: 400px;
+        }
+
+        .tab-panel h3 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .tab-panel p {
+            color: #555;
+            line-height: 1.9;
+            font-size: 16px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+        }
+
+        .tab-panel ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .tab-panel ul li {
+            padding: 15px 20px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+            color: #555;
+            line-height: 1.7;
+            font-size: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .list-item {
+            padding: 15px 20px;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            line-height: 1.7;
+            font-size: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .list-item.red-flag {
+            border-left: 4px solid #dc3545;
+            background: #fff5f5;
+        }
+
+        .list-item.strength {
+            border-left: 4px solid #28a745;
+            background: #f0fff4;
+        }
+
+        .list-item.next-step {
+            border-left: 4px solid #ffc107;
+            background: #fffbf0;
+        }
+
+        .list-item.reasoning {
+            border-left: 4px solid #667eea;
+            background: white;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 40px 0;
+            text-align: center;
+            border: 2px solid #f5c6cb;
+        }
+
+        .error pre {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .action-buttons {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        @media (max-width: 768px) {
+            .score-hero {
+                flex-direction: column;
+                gap: 30px;
+            }
+
+            .tab {
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+
+            .tab-panel {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/deals/{{ deal_id }}" class="back-link">← Back to Deal Details</a>
+
+        <div class="header">
+            <h1>🤖 AI Deal Analysis</h1>
+            <p class="subtitle" id="deal-title">Analyzing Deal #{{ deal_id }}</p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading-state" class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Analyzing deal with AI...</div>
+            <div class="loading-subtext">This may take 10-20 seconds. Please wait.</div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" style="display: none;">
+            <div class="error">
+                <h2>❌ Error</h2>
+                <p id="error-message"></p>
+                <pre id="error-details" style="display: none;"></pre>
+                <div style="margin-top: 20px;">
+                    <button onclick="retryScoring()" class="btn">🔄 Retry</button>
+                    <a href="/deals/{{ deal_id }}" class="btn btn-secondary">← Back to Deal</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results State -->
+        <div id="results-state" style="display: none;">
+            <!-- Score Hero Section -->
+            <div class="score-hero">
+                <div class="score-circle-container">
+                    <div class="score-circle">
+                        <svg width="250" height="250">
+                            <circle class="score-circle-bg" cx="125" cy="125" r="110"></circle>
+                            <circle class="score-circle-progress" id="score-progress" cx="125" cy="125" r="110"
+                                    stroke-dasharray="691" stroke-dashoffset="691"></circle>
+                        </svg>
+                        <div class="score-text">
+                            <div class="score-value" id="ai-score">--</div>
+                            <div class="score-label">DEAL SCORE</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="score-details">
+                    <h2>Recommendation</h2>
+                    <p id="recommendation">Analyzing...</p>
+                    <div id="risk-level"></div>
+                </div>
+            </div>
+
+            <!-- Tabbed Analysis -->
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab(event, 'summary')">📊 Summary</button>
+                <button class="tab" onclick="switchTab(event, 'market')">📈 Market</button>
+                <button class="tab" onclick="switchTab(event, 'origin')">🌍 Origin</button>
+                <button class="tab" onclick="switchTab(event, 'buyer')">👥 Buyer</button>
+                <button class="tab" onclick="switchTab(event, 'price')">💰 Price</button>
+                <button class="tab" onclick="switchTab(event, 'logistics')">🚚 Logistics</button>
+                <button class="tab" onclick="switchTab(event, 'assessment')">⚖️ Assessment</button>
+                <button class="tab" onclick="switchTab(event, 'actions')">📋 Actions</button>
+            </div>
+
+            <div id="summary" class="tab-content active">
+                <div class="tab-panel">
+                    <h3>📊 Executive Summary</h3>
+                    <div id="executive-summary"></div>
+                </div>
+            </div>
+
+            <div id="market" class="tab-content">
+                <div class="tab-panel">
+                    <h3>📈 Market Analysis</h3>
+                    <div id="market-analysis"></div>
+                </div>
+            </div>
+
+            <div id="origin" class="tab-content">
+                <div class="tab-panel">
+                    <h3>🌍 Origin Analysis</h3>
+                    <div id="origin-analysis"></div>
+                </div>
+            </div>
+
+            <div id="buyer" class="tab-content">
+                <div class="tab-panel">
+                    <h3>👥 Buyer Profile & Market Fit</h3>
+                    <div id="buyer-profile"></div>
+                </div>
+            </div>
+
+            <div id="price" class="tab-content">
+                <div class="tab-panel">
+                    <h3>💰 Price Competitiveness Analysis</h3>
+                    <div id="price-analysis"></div>
+                </div>
+            </div>
+
+            <div id="logistics" class="tab-content">
+                <div class="tab-panel">
+                    <h3>🚚 Payment & Logistics Assessment</h3>
+                    <div id="payment-logistics"></div>
+                </div>
+            </div>
+
+            <div id="assessment" class="tab-content">
+                <div class="tab-panel">
+                    <h3>🚨 Red Flags & Concerns</h3>
+                    <div id="red-flags-list"></div>
+
+                    <h3 style="margin-top: 40px;">✅ Deal Strengths</h3>
+                    <div id="strengths-list"></div>
+
+                    <h3 style="margin-top: 40px;">🔍 Unusual Patterns</h3>
+                    <div id="unusual-patterns-list"></div>
+
+                    <h3 style="margin-top: 40px;">💭 Key Reasoning</h3>
+                    <div id="reasoning-list"></div>
+                </div>
+            </div>
+
+            <div id="actions" class="tab-content">
+                <div class="tab-panel">
+                    <h3>📋 Recommended Next Steps</h3>
+                    <div id="next-steps-list"></div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <a href="/deals/{{ deal_id }}" class="btn">← Back to Deal</a>
+                <a href="/" class="btn btn-secondary">📊 Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dealId = {{ deal_id }};
+
+        function switchTab(event, tabName) {
+            const tabContents = document.getElementsByClassName('tab-content');
+            for (let content of tabContents) {
+                content.classList.remove('active');
+            }
+
+            const tabs = document.getElementsByClassName('tab');
+            for (let tab of tabs) {
+                tab.classList.remove('active');
+            }
+
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        function animateScore(score) {
+            const circle = document.getElementById('score-progress');
+            const circumference = 2 * Math.PI * 110;
+            const offset = circumference - (score / 100) * circumference;
+
+            setTimeout(() => {
+                circle.style.strokeDashoffset = offset;
+            }, 200);
+
+            const scoreElement = document.getElementById('ai-score');
+            let current = 0;
+            const increment = score / 60;
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= score) {
+                    current = score;
+                    clearInterval(timer);
+                }
+                scoreElement.textContent = Math.round(current);
+            }, 20);
+        }
+
+        function formatParagraphs(text) {
+            if (!text) return '<p style="opacity: 0.6;">No data available</p>';
+
+            // Just display the text as-is with line breaks converted to <br>
+            return '<p>' + text.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+        }
+
+        function displayList(elementId, items, className, icon) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '';
+
+            if (items && items.length > 0) {
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = `list-item ${className}`;
+                    div.textContent = `${icon} ${item}`;
+                    element.appendChild(div);
+                });
+            } else {
+                element.innerHTML = '<div class="list-item" style="opacity: 0.5; border-left: none;">None identified</div>';
+            }
+        }
+
+        function showError(message, details = null) {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('error-state').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+
+            if (details) {
+                document.getElementById('error-details').textContent = details;
+                document.getElementById('error-details').style.display = 'block';
+            }
+        }
+
+        function showResults(data) {
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('results-state').style.display = 'block';
+
+            animateScore(data.score);
+
+            document.getElementById('executive-summary').innerHTML = formatParagraphs(data.executive_summary);
+            document.getElementById('market-analysis').innerHTML = formatParagraphs(data.market_analysis);
+            document.getElementById('origin-analysis').innerHTML = formatParagraphs(data.origin_analysis);
+            document.getElementById('buyer-profile').innerHTML = formatParagraphs(data.buyer_profile);
+            document.getElementById('price-analysis').innerHTML = formatParagraphs(data.price_analysis);
+            document.getElementById('payment-logistics').innerHTML = formatParagraphs(data.payment_logistics);
+
+            const recommendation = data.recommendation || 'Review analysis carefully';
+            document.getElementById('recommendation').innerHTML = formatParagraphs(recommendation);
+
+            let riskLevel = data.risk_level || 'medium';
+            if (data.score >= 70) riskLevel = 'low';
+            else if (data.score < 50) riskLevel = 'high';
+
+            document.getElementById('risk-level').innerHTML =
+                `<span class="risk-badge risk-${riskLevel}">Risk: ${riskLevel.toUpperCase()}</span>`;
+
+            displayList('red-flags-list', data.red_flags, 'red-flag', '🚨');
+            displayList('strengths-list', data.strengths, 'strength', '✅');
+            displayList('unusual-patterns-list', data.unusual_patterns, 'list-item', '⚠️');
+            displayList('next-steps-list', data.next_steps, 'next-step', '📋');
+            displayList('reasoning-list', data.reasoning, 'reasoning', '💭');
+        }
+
+        async function scoreDeal() {
+            try {
+                const response = await fetch(`/api/deals/${dealId}/score`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showResults(data);
+                } else {
+                    showError(
+                        'Failed to score deal: ' + (data.error || 'Unknown error'),
+                        JSON.stringify(data, null, 2)
+                    );
+                }
+            } catch (error) {
+                showError(
+                    'Network error: ' + error.message,
+                    error.stack
+                );
+            }
+        }
+
+        function retryScoring() {
+            document.getElementById('error-state').style.display = 'none';
+            document.getElementById('loading-state').style.display = 'block';
+            scoreDeal();
+        }
+
+        // Start scoring when page loads
+        document.addEventListener('DOMContentLoaded', scoreDeal);
+    </script>
+</body>
+</html>

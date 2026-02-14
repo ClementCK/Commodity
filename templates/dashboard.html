@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commodity Deal Tracker - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 36px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-value {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .deals-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .deals-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+        
+        .deals-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .deals-table tr:hover {
+            background: #f8f9ff;
+            cursor: pointer;
+        }
+        
+        .deals-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-unassigned {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-under_review {
+            background: #cce5ff;
+            color: #004085;
+        }
+        
+        .status-in_progress {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status-done {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-closed_lost {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-on_hold {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .status-rejected {
+            background: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+            font-size: 18px;
+        }
+        
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #721c24;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .score {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .score-high {
+            color: #28a745;
+        }
+        
+        .score-medium {
+            color: #ffc107;
+        }
+        
+        .score-low {
+            color: #dc3545;
+        }
+
+        @media (max-width: 768px) {
+            .stats {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .deals-table {
+                font-size: 12px;
+            }
+
+            .deals-table th,
+            .deals-table td {
+                padding: 10px 8px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        .deals-table tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        .deals-table tbody tr:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+    <div>
+        <h1>📊 Commodity Deal Tracker</h1>
+        <p class="subtitle">Manage your trading deals efficiently</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <a href="/kanban" class="btn" style="background: #6c757d;">📋 Kanban View</a>
+        <a href="/deals/new" class="btn">➕ Add New Deal</a>
+    </div>
+</div>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Deals</div>
+                <div class="stat-value" id="total-deals">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unassigned</div>
+                <div class="stat-value" id="unassigned-deals">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">In Progress</div>
+                <div class="stat-value" id="progress-deals">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Completed</div>
+                <div class="stat-value" id="done-deals">-</div>
+            </div>
+        </div>
+        
+        <h2 class="section-title">📋 Recent Deals</h2>
+        
+        <div id="loading" class="loading">Loading deals</div>
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div class="table-wrapper">
+            <table class="deals-table" id="deals-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Commodity</th>
+                    <th>Source</th>
+                    <th>Origin</th>
+                    <th>Quantity</th>
+                    <th>Status</th>
+                    <th>Date Received</th>
+                    <th>AI Score</th>
+                </tr>
+            </thead>
+            <tbody id="deals-tbody">
+            </tbody>
+        </table>
+        </div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <h3>🎯 No Deals Yet</h3>
+            <p>Start by adding your first deal!</p>
+            <a href="/deals/new" class="btn">➕ Add Your First Deal</a>
+        </div>
+    </div>
+    
+    <script>
+        // Fetch statistics
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/statistics');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const stats = data.statistics;
+                    document.getElementById('total-deals').textContent = stats.total_deals;
+                    document.getElementById('unassigned-deals').textContent = stats.by_status.unassigned || 0;
+                    document.getElementById('progress-deals').textContent = stats.by_status.in_progress || 0;
+                    document.getElementById('done-deals').textContent = stats.by_status.done || 0;
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+        
+        // Fetch and display deals
+        async function loadDeals() {
+            try {
+                const response = await fetch('/api/deals?limit=50');
+                const data = await response.json();
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.success) {
+                    const tbody = document.getElementById('deals-tbody');
+                    tbody.innerHTML = '';
+                    
+                    if (data.deals.length === 0) {
+                        document.getElementById('empty-state').style.display = 'block';
+                    } else {
+                        data.deals.forEach(deal => {
+                            const row = document.createElement('tr');
+                            
+                            // Format score with color
+                            let scoreHtml = '-';
+                            if (deal.ai_score !== null) {
+                                let scoreClass = 'score-medium';
+                                if (deal.ai_score >= 70) scoreClass = 'score-high';
+                                else if (deal.ai_score < 50) scoreClass = 'score-low';
+                                scoreHtml = `<span class="score ${scoreClass}">${deal.ai_score}</span>`;
+                            }
+                            
+                            row.innerHTML = `
+                                <td><strong>#${deal.id}</strong></td>
+                                <td><strong>${deal.commodity_type}</strong></td>
+                                <td>${deal.source_name}</td>
+                                <td>${deal.origin_country || '-'}</td>
+                                <td>${deal.quantity || '-'} ${deal.quantity_unit || ''}</td>
+                                <td><span class="status-badge status-${deal.status}">${deal.status.replace('_', ' ')}</span></td>
+                                <td>${new Date(deal.date_received).toLocaleDateString()}</td>
+                                <td>${scoreHtml}</td>
+                            `;
+                            row.style.cursor = 'pointer';
+                            row.onclick = () => window.location.href = `/deals/${deal.id}`;
+                            tbody.appendChild(row);
+                        });
+                        
+                        document.getElementById('deals-table').style.display = 'table';
+                    }
+                } else {
+                    document.getElementById('error').textContent = 'Error loading deals: ' + data.error;
+                    document.getElementById('error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').textContent = 'Error connecting to server: ' + error.message;
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+        
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStatistics();
+            loadDeals();
+        });
+    </script>
+</body>
+</html>

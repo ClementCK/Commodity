@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban Board - Commodity Deal Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            background: white;
+            padding: 20px 40px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 { color: #333; font-size: 28px; }
+        .header-buttons { display: flex; gap: 10px; }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); }
+        .btn-secondary { background: #6c757d; }
+        .kanban-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            height: calc(100vh - 180px);
+        }
+        .kanban-column {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .column-header {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .column-unassigned .column-header {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: white;
+        }
+        .column-in_progress .column-header {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+        .column-on_hold .column-header {
+            background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%);
+            color: white;
+        }
+        .column-done .column-header {
+            background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+            color: white;
+        }
+        .column-count { display: block; font-size: 24px; margin-top: 5px; }
+        .cards-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 5px;
+            min-height: 100px;
+        }
+        .deal-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: move;
+            border: 2px solid #e0e0e0;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .deal-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        .deal-card.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        .cards-container.drag-over {
+            background: #f0f0ff;
+            border: 2px dashed #667eea;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .card-id { font-size: 12px; color: #666; font-weight: bold; }
+        .card-commodity { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 8px; }
+        .card-source { font-size: 14px; color: #666; margin-bottom: 5px; }
+        .card-price { font-size: 13px; color: #667eea; font-weight: 600; margin-bottom: 5px; }
+        .card-origin { font-size: 12px; color: #999; margin-bottom: 8px; }
+        .card-score {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .score-high { background: #d4edda; color: #155724; }
+        .score-medium { background: #fff3cd; color: #856404; }
+        .score-low { background: #f8d7da; color: #721c24; }
+        .score-none { background: #e9ecef; color: #6c757d; }
+        .empty-column { text-align: center; color: #999; padding: 40px 20px; font-size: 14px; }
+        .loading { text-align: center; padding: 40px; color: white; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Deal Pipeline</h1>
+        <div class="header-buttons">
+            <a href="/deals/new" class="btn">➕ Add Deal</a>
+            <a href="/" class="btn btn-secondary">📋 Table View</a>
+        </div>
+    </div>
+    
+    <div id="loading" class="loading">Loading deals...</div>
+    
+    <div class="kanban-board" id="kanban-board" style="display: none;">
+        <div class="kanban-column column-unassigned" data-status="unassigned">
+            <div class="column-header">Unassigned<span class="column-count" id="count-unassigned">0</span></div>
+            <div class="cards-container" id="column-unassigned"></div>
+        </div>
+        <div class="kanban-column column-in_progress" data-status="in_progress">
+            <div class="column-header">In Progress<span class="column-count" id="count-in_progress">0</span></div>
+            <div class="cards-container" id="column-in_progress"></div>
+        </div>
+        <div class="kanban-column column-on_hold" data-status="on_hold">
+            <div class="column-header">On Hold<span class="column-count" id="count-on_hold">0</span></div>
+            <div class="cards-container" id="column-on_hold"></div>
+        </div>
+        <div class="kanban-column column-done" data-status="done">
+            <div class="column-header">Done<span class="column-count" id="count-done">0</span></div>
+            <div class="cards-container" id="column-done"></div>
+        </div>
+    </div>
+
+    <div id="deal-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 20px; padding: 40px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative;">
+            <button onclick="closeModal()" style="position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">✕</button>
+            <h2 style="margin-bottom: 20px; color: #333;" id="modal-title">Deal Details</h2>
+            <div id="modal-content" style="line-height: 1.8;"></div>
+            <div style="margin-top: 30px;"><button onclick="closeModal()" class="btn btn-secondary">Close</button></div>
+        </div>
+    </div>
+
+<script>
+let deals = [];
+let draggedCard = null;
+
+async function loadDeals() {
+    try {
+        const r = await fetch('/api/deals?limit=100');
+        const d = await r.json();
+        document.getElementById('loading').style.display = 'none';
+        if (d.success) {
+            deals = d.deals;
+            renderKanban();
+            document.getElementById('kanban-board').style.display = 'grid';
+        }
+    } catch (e) {
+        document.getElementById('loading').textContent = 'Error: ' + e.message;
+    }
+}
+
+function renderKanban() {
+    ['unassigned', 'in_progress', 'on_hold', 'done'].forEach(s => {
+        const c = document.getElementById(`column-${s}`);
+        const d = deals.filter(x => x.status === s);
+        document.getElementById(`count-${s}`).textContent = d.length;
+        c.innerHTML = d.length ? '' : '<div class="empty-column">Drop here</div>';
+        d.forEach(deal => c.appendChild(createCard(deal)));
+    });
+    setupDrag();
+}
+
+function createCard(d) {
+    const c = document.createElement('div');
+    c.className = 'deal-card';
+    c.draggable = true;
+    c.dataset.dealId = d.id;
+    let p = '-';
+    if (d.price_type === 'lme_discount' && d.net_discount !== null) p = `LME ${d.net_discount}%`;
+    else if (d.price !== null) p = `${d.price} ${d.price_currency || 'USD'}`;
+    let s = '<span class="card-score score-none">No Score</span>';
+    if (d.ai_score !== null) {
+        let sc = d.ai_score >= 70 ? 'high' : d.ai_score >= 50 ? 'medium' : 'low';
+        s = `<span class="card-score score-${sc}">${d.ai_score}</span>`;
+    }
+    c.innerHTML = `<div class="card-header"><span class="card-id">#${d.id}</span>${s}</div><div class="card-commodity">📦 ${d.commodity_type}</div><div class="card-source">👤 ${d.source_name}</div><div class="card-price">💰 ${p}</div><div class="card-origin">📍 ${d.origin_country || 'Unknown'}</div>`;
+    c.ondblclick = () => showDetail(d);
+    return c;
+}
+
+function setupDrag() {
+    document.querySelectorAll('.deal-card').forEach(c => {
+        c.ondragstart = e => { draggedCard = c; c.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+        c.ondragend = () => { c.classList.remove('dragging'); document.querySelectorAll('.cards-container').forEach(x => x.classList.remove('drag-over')); };
+    });
+    document.querySelectorAll('.cards-container').forEach(c => {
+        c.ondragover = e => { e.preventDefault(); c.classList.add('drag-over'); return false; };
+        c.ondragleave = () => c.classList.remove('drag-over');
+        c.ondrop = async e => {
+            e.preventDefault();
+            c.classList.remove('drag-over');
+            if (!draggedCard) return;
+            const id = draggedCard.dataset.dealId;
+            const ns = c.parentElement.dataset.status;
+            try {
+                const r = await fetch(`/api/deals/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({status: ns})
+                });
+                const res = await r.json();
+                if (res.success) {
+                    const deal = deals.find(x => x.id == id);
+                    if (deal) deal.status = ns;
+                    renderKanban();
+                } else alert('Error: ' + res.error);
+            } catch (err) { alert('Error: ' + err.message); }
+        };
+    });
+}
+
+function showDetail(d) {
+    document.getElementById('modal-title').textContent = `Deal #${d.id} - ${d.commodity_type}`;
+    
+    let priceDisplay = 'Not specified';
+    if (d.price_type === 'lme_discount') {
+        priceDisplay = `
+            <strong>LME Discount Pricing:</strong><br>
+            Gross Discount: ${d.gross_discount || '-'}%<br>
+            Commission: ${d.commission || '-'}%<br>
+            <strong>Net Discount: ${d.net_discount || '-'}%</strong>
+        `;
+    } else if (d.price) {
+        priceDisplay = `${d.price} ${d.price_currency || 'USD'}`;
+    }
+    
+    document.getElementById('modal-content').innerHTML = `
+        <div style="display: grid; gap: 15px;">
+            <div>
+                <strong style="color: #667eea;">Commodity:</strong><br>
+                ${d.commodity_type}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Source:</strong><br>
+                ${d.source_name} (Reliability: ${d.source_reliability}/10)
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Price:</strong><br>
+                ${priceDisplay}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Quantity:</strong><br>
+                ${d.quantity || '-'} ${d.quantity_unit || ''}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Origin:</strong><br>
+                ${d.origin_country || 'Not specified'}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Payment Method:</strong><br>
+                ${d.payment_method || 'Not specified'}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Shipping Terms:</strong><br>
+                ${d.shipping_terms || 'Not specified'}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Status:</strong><br>
+                ${d.status.replace('_', ' ').toUpperCase()}
+            </div>
+            
+            <div>
+                <strong style="color: #667eea;">Date Received:</strong><br>
+                ${new Date(d.date_received).toLocaleDateString()}
+            </div>
+            
+            ${d.deal_text ? `
+            <div>
+                <strong style="color: #667eea;">Deal Details:</strong><br>
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 5px;">
+                    ${d.deal_text}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${d.additional_notes ? `
+            <div>
+                <strong style="color: #667eea;">Additional Notes:</strong><br>
+                <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 5px;">
+                    ${d.additional_notes}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${d.ai_score ? `
+            <div>
+                <strong style="color: #667eea;">AI Score:</strong><br>
+                <span style="font-size: 24px; font-weight: bold; color: ${d.ai_score >= 70 ? '#28a745' : d.ai_score >= 50 ? '#ffc107' : '#dc3545'};">
+                    ${d.ai_score}/100
+                </span>
+            </div>
+            ` : '<div style="background: #e9ecef; padding: 15px; border-radius: 8px; text-align: center;"><em>💡 AI scoring will be available once you configure your API key!</em></div>'}
+        </div>
+    `;
+    // Add score button HTML
+    const scoreButtonHtml = d.ai_score ? 
+        `<button onclick="scoreThisDeal(${d.id})" class="btn" style="margin-top: 20px; width: 100%;">🔄 Re-score with AI</button>` :
+        `<button onclick="scoreThisDeal(${d.id})" class="btn" style="margin-top: 20px; width: 100%;">🤖 Score This Deal with AI</button>`;
+    
+    document.getElementById('modal-content').innerHTML += scoreButtonHtml;
+
+    document.getElementById('deal-modal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('deal-modal').style.display = 'none';
+}
+
+document.getElementById('deal-modal').onclick = e => { if (e.target.id === 'deal-modal') closeModal(); };
+async function scoreThisDeal(dealId) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Scoring with AI...';
+    
+    try {
+        const response = await fetch(`/api/deals/${dealId}/score`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show results
+            alert(`✅ AI Score: ${result.score}/100\n\nRisk Level: ${result.risk_level.toUpperCase()}\n\nRecommendation: ${result.recommendation}`);
+            
+            // Reload deals to show new score
+            await loadDeals();
+            closeModal();
+        } else {
+            alert('❌ Error: ' + result.error);
+            btn.disabled = false;
+            btn.textContent = '🤖 Score This Deal with AI';
+        }
+    } catch (error) {
+        alert('❌ Error: ' + error.message);
+        btn.disabled = false;
+        btn.textContent = '🤖 Score This Deal with AI';
+    }
+}
+loadDeals();
+</script>
+</body>
+</html>
