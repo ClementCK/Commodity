@@ -79,7 +79,19 @@ export default function DealDetail() {
         if (deal.price_type === 'lme_discount' && deal.net_discount != null) {
             return `LME ${deal.net_discount}% (Gross: ${deal.gross_discount}%, Comm: ${deal.commission}%)`
         }
-        return deal.price != null ? `${deal.price} ${deal.price_currency || 'USD'}` : '—'
+        if (deal.price != null) {
+            const base = `${deal.price} ${deal.price_currency || 'USD'}`
+            if (deal.fixed_commission != null) return `${base} (Comm: ${deal.fixed_commission} → Net: ${deal.net_price ?? '—'} ${deal.price_currency || 'USD'})`
+            return base
+        }
+        return '—'
+    }
+
+    const formatContractEnd = () => {
+        if (!deal.contract_start_date || !deal.contract_duration_months) return null
+        const d = new Date(deal.contract_start_date)
+        d.setMonth(d.getMonth() + deal.contract_duration_months)
+        return d.toLocaleDateString()
     }
 
     return (
@@ -114,7 +126,33 @@ export default function DealDetail() {
                             <InfoRow label="Shipping" value={deal.shipping_terms || '—'} />
                             <InfoRow label="Payment" value={deal.payment_method || '—'} />
                             <InfoRow label="Date" value={deal.date_received ? new Date(deal.date_received).toLocaleDateString() : '—'} />
+                            <InfoRow
+                                label="货物类型 (Delivery Type)"
+                                value={deal.delivery_type === 'futures' ? '期货 (Futures)' : '现货 (Spot)'}
+                            />
+                            {deal.delivery_type === 'futures' && (
+                                <>
+                                    <InfoRow
+                                        label="Contract Period"
+                                        value={deal.contract_start_date
+                                            ? `${new Date(deal.contract_start_date).toLocaleDateString()} · ${deal.contract_duration_months ?? '?'} months → ${formatContractEnd() || '?'}`
+                                            : '—'}
+                                    />
+                                    <InfoRow
+                                        label="Delivery Frequency (交货频率)"
+                                        value={deal.delivery_frequency
+                                            ? deal.delivery_frequency.charAt(0).toUpperCase() + deal.delivery_frequency.slice(1)
+                                            : '—'}
+                                    />
+                                </>
+                            )}
                         </div>
+                        {deal.delivery_type === 'futures' && deal.delivery_schedule_notes && (
+                            <div style={{ marginTop: '16px' }}>
+                                <h4 style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>交货安排 (Delivery Schedule)</h4>
+                                <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{deal.delivery_schedule_notes}</p>
+                            </div>
+                        )}
 
                         {deal.deal_text && (
                             <div style={{ marginTop: '24px' }}>

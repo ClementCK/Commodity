@@ -25,11 +25,18 @@ export default function DealForm() {
         gross_discount: '',
         commission: '',
         net_discount: '',
+        fixed_commission: '',
+        net_price: '',
         quantity: '',
         quantity_unit: 'kg',
         origin_country: '',
         shipping_terms: '',
         payment_method: '',
+        delivery_type: 'spot',
+        contract_start_date: '',
+        contract_duration_months: '',
+        delivery_frequency: 'monthly',
+        delivery_schedule_notes: '',
         date_received: new Date().toISOString().split('T')[0],
         status: 'unassigned',
         additional_notes: '',
@@ -66,11 +73,18 @@ export default function DealForm() {
             gross_discount: data.gross_discount ?? '',
             commission: data.commission ?? '',
             net_discount: data.net_discount ?? '',
+            fixed_commission: data.fixed_commission ?? '',
+            net_price: data.net_price ?? '',
             quantity: data.quantity ?? '',
             quantity_unit: data.quantity_unit || 'kg',
             origin_country: data.origin_country || '',
             shipping_terms: data.shipping_terms || '',
             payment_method: data.payment_method || '',
+            delivery_type: data.delivery_type || 'spot',
+            contract_start_date: data.contract_start_date || '',
+            contract_duration_months: data.contract_duration_months ?? '',
+            delivery_frequency: data.delivery_frequency || 'monthly',
+            delivery_schedule_notes: data.delivery_schedule_notes || '',
             date_received: data.date_received || '',
             status: data.status || 'unassigned',
             additional_notes: data.additional_notes || '',
@@ -78,15 +92,28 @@ export default function DealForm() {
         setFetching(false)
     }
 
+    function calcContractEndDate(startDate, durationMonths) {
+        if (!startDate || !durationMonths) return null
+        const d = new Date(startDate)
+        d.setMonth(d.getMonth() + parseInt(durationMonths))
+        return d.toLocaleDateString()
+    }
+
     function handleChange(e) {
         const { name, value } = e.target
         setForm(prev => {
             const next = { ...prev, [name]: value }
-            // Auto-calc net discount
+            // Auto-calc net discount for LME
             if (name === 'gross_discount' || name === 'commission') {
                 const gross = parseFloat(name === 'gross_discount' ? value : prev.gross_discount) || 0
                 const comm = parseFloat(name === 'commission' ? value : prev.commission) || 0
                 next.net_discount = (gross - comm).toFixed(1)
+            }
+            // Auto-calc net price for fixed price (flat deduction)
+            if (name === 'price' || name === 'fixed_commission') {
+                const price = parseFloat(name === 'price' ? value : prev.price) || 0
+                const comm = parseFloat(name === 'fixed_commission' ? value : prev.fixed_commission) || 0
+                next.net_price = (price - comm).toFixed(2)
             }
             return next
         })
@@ -96,7 +123,6 @@ export default function DealForm() {
         e.preventDefault()
         setLoading(true)
 
-        // Find source to link
         const source = sources.find(s => s.name === form.source_name)
 
         const payload = {
@@ -111,11 +137,18 @@ export default function DealForm() {
             gross_discount: form.price_type === 'lme_discount' ? (parseFloat(form.gross_discount) || null) : null,
             commission: form.price_type === 'lme_discount' ? (parseFloat(form.commission) || null) : null,
             net_discount: form.price_type === 'lme_discount' ? (parseFloat(form.net_discount) || null) : null,
+            fixed_commission: form.price_type === 'fixed_price' ? (parseFloat(form.fixed_commission) || null) : null,
+            net_price: form.price_type === 'fixed_price' ? (parseFloat(form.net_price) || null) : null,
             quantity: parseFloat(form.quantity) || null,
             quantity_unit: form.quantity_unit,
             origin_country: form.origin_country || null,
             shipping_terms: form.shipping_terms || null,
             payment_method: form.payment_method || null,
+            delivery_type: form.delivery_type || 'spot',
+            contract_start_date: form.delivery_type === 'futures' ? (form.contract_start_date || null) : null,
+            contract_duration_months: form.delivery_type === 'futures' ? (parseInt(form.contract_duration_months) || null) : null,
+            delivery_frequency: form.delivery_type === 'futures' ? (form.delivery_frequency || null) : null,
+            delivery_schedule_notes: form.delivery_type === 'futures' ? (form.delivery_schedule_notes || null) : null,
             date_received: form.date_received,
             status: form.status,
             additional_notes: form.additional_notes || null,
@@ -144,6 +177,8 @@ export default function DealForm() {
     if (fetching) {
         return <div className="loading-spinner"><div className="spinner" /></div>
     }
+
+    const contractEndDate = calcContractEndDate(form.contract_start_date, form.contract_duration_months)
 
     return (
         <>
@@ -234,25 +269,39 @@ export default function DealForm() {
                                     </div>
                                 </>
                             ) : (
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label>Price</label>
-                                        <input className="form-control" type="number" step="0.01" name="price" value={form.price} onChange={handleChange} placeholder="1970.00" />
+                                <>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Price</label>
+                                            <input className="form-control" type="number" step="0.01" name="price" value={form.price} onChange={handleChange} placeholder="1970.00" />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Currency</label>
+                                            <select className="form-control" name="price_currency" value={form.price_currency} onChange={handleChange}>
+                                                <option value="USD">USD</option>
+                                                <option value="CNY">CNY</option>
+                                                <option value="EUR">EUR</option>
+                                                <option value="GBP">GBP</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div className="form-group">
-                                        <label>Currency</label>
-                                        <select className="form-control" name="price_currency" value={form.price_currency} onChange={handleChange}>
-                                            <option value="USD">USD</option>
-                                            <option value="CNY">CNY</option>
-                                            <option value="EUR">EUR</option>
-                                            <option value="GBP">GBP</option>
-                                        </select>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Commission (flat amount)</label>
+                                            <input className="form-control" type="number" step="0.01" name="fixed_commission" value={form.fixed_commission} onChange={handleChange} placeholder="30.00" />
+                                            <div className="form-help">In {form.price_currency} — deducted from price</div>
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Net Price (after commission)</label>
+                                            <input className="form-control" type="number" step="0.01" name="net_price" value={form.net_price} readOnly style={{ background: 'var(--bg-inset)' }} />
+                                            <div className="form-help">Auto-calculated: Price − Commission</div>
+                                        </div>
                                     </div>
-                                </div>
+                                </>
                             )}
                         </div>
 
-                        {/* Quantity & Origin */}
+                        {/* Quantity & Logistics */}
                         <div className="form-section">
                             <div className="form-section-title">🌍 Logistics</div>
 
@@ -272,6 +321,57 @@ export default function DealForm() {
                                     </select>
                                 </div>
                             </div>
+
+                            {/* Spot / Futures */}
+                            <div className="form-group">
+                                <label>货物类型 (Delivery Type)</label>
+                                <select className="form-control" name="delivery_type" value={form.delivery_type} onChange={handleChange}>
+                                    <option value="spot">现货 (Spot) — Ready stock, one-time pickup</option>
+                                    <option value="futures">期货 (Futures) — Contract with scheduled deliveries</option>
+                                </select>
+                            </div>
+
+                            {form.delivery_type === 'futures' && (
+                                <>
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Contract Start Date (合同开始日期)</label>
+                                            <input className="form-control" type="date" name="contract_start_date" value={form.contract_start_date} onChange={handleChange} />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Duration (months 月数)</label>
+                                            <input className="form-control" type="number" min="1" step="1" name="contract_duration_months" value={form.contract_duration_months} onChange={handleChange} placeholder="12" />
+                                        </div>
+                                    </div>
+                                    {contractEndDate && (
+                                        <div className="form-group">
+                                            <div style={{ padding: '8px 12px', background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                                📅 Contract ends: <strong>{contractEndDate}</strong>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="form-group">
+                                        <label>Delivery Frequency (交货频率)</label>
+                                        <select className="form-control" name="delivery_frequency" value={form.delivery_frequency} onChange={handleChange}>
+                                            <option value="monthly">Monthly (每月)</option>
+                                            <option value="quarterly">Quarterly (每季度)</option>
+                                            <option value="weekly">Weekly (每周)</option>
+                                            <option value="custom">Custom (自定义)</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Delivery Schedule Notes (交货安排)</label>
+                                        <textarea
+                                            className="form-control"
+                                            name="delivery_schedule_notes"
+                                            value={form.delivery_schedule_notes}
+                                            onChange={handleChange}
+                                            rows={3}
+                                            placeholder="e.g., 每月第一周取货 500MT，共12次..."
+                                        />
+                                    </div>
+                                </>
+                            )}
 
                             <div className="form-row">
                                 <div className="form-group">
