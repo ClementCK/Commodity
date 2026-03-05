@@ -77,6 +77,9 @@ export default function Layout() {
                     <NavLink to="/kanban">
                         <span className="nav-icon">📋</span> Kanban Board
                     </NavLink>
+                    <NavLink to="/sources">
+                        <span className="nav-icon">🏢</span> Sources
+                    </NavLink>
                     <NavLink to="/assistant">
                         <span className="nav-icon">🤖</span> AI Assistant
                     </NavLink>
