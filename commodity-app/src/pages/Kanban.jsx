@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 
 const COLUMNS = [
     { key: 'unassigned', label: 'Unassigned' },
@@ -15,18 +16,25 @@ export default function Kanban() {
     const [loading, setLoading] = useState(true)
     const [draggedId, setDraggedId] = useState(null)
     const [dragOverCol, setDragOverCol] = useState(null)
+    const [viewAll, setViewAll] = useState(false)
     const navigate = useNavigate()
     const toast = useToast()
+    const { user, isAdmin } = useAuth()
 
-    useEffect(() => { loadDeals() }, [])
+    useEffect(() => { if (user) loadDeals() }, [user, viewAll])
 
     async function loadDeals() {
-        const { data, error } = await supabase
+        let query = supabase
             .from('deals')
             .select('id, legacy_id, commodity_type, source_name, origin_country, status, ai_score, price_type, price, price_currency, net_discount, quantity, quantity_unit')
             .order('date_received', { ascending: false })
             .limit(200)
 
+        if (!isAdmin || !viewAll) {
+            query = query.eq('created_by', user.id)
+        }
+
+        const { data, error } = await query
         if (error) {
             toast.error('Failed to load deals')
         } else {
@@ -74,11 +82,23 @@ export default function Kanban() {
             <div className="page-header">
                 <div>
                     <h1>Deal Pipeline</h1>
-                    <p className="subtitle">Drag and drop to update deal status</p>
+                    <p className="subtitle">
+                        {isAdmin && viewAll ? 'Viewing all users\' deals' : 'Drag and drop to update deal status'}
+                    </p>
                 </div>
-                <button className="btn btn-primary" onClick={() => navigate('/deals/new')}>
-                    ➕ Add Deal
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    {isAdmin && (
+                        <button
+                            className={`btn ${viewAll ? 'btn-secondary' : 'btn-ghost'}`}
+                            onClick={() => setViewAll(v => !v)}
+                        >
+                            {viewAll ? '👥 All Users' : '👤 My Data'}
+                        </button>
+                    )}
+                    <button className="btn btn-primary" onClick={() => navigate('/deals/new')}>
+                        ➕ Add Deal
+                    </button>
+                </div>
             </div>
 
             <div className="kanban-board">

@@ -1,29 +1,36 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Dashboard() {
     const [deals, setDeals] = useState([])
     const [stats, setStats] = useState({ total: 0, unassigned: 0, inProgress: 0, done: 0 })
     const [loading, setLoading] = useState(true)
+    const [viewAll, setViewAll] = useState(false)
     const navigate = useNavigate()
+    const { user, isAdmin } = useAuth()
 
     useEffect(() => {
-        loadData()
-    }, [])
+        if (user) loadData()
+    }, [user, viewAll])
 
     async function loadData() {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('deals')
                 .select('id, legacy_id, commodity_type, source_name, origin_country, price_type, price, price_currency, net_discount, quantity, quantity_unit, status, date_received, ai_score')
                 .order('date_received', { ascending: false })
                 .limit(50)
 
+            if (!isAdmin || !viewAll) {
+                query = query.eq('created_by', user.id)
+            }
+
+            const { data, error } = await query
             if (error) throw error
             setDeals(data || [])
 
-            // Calculate stats
             const all = data || []
             setStats({
                 total: all.length,
@@ -63,12 +70,38 @@ export default function Dashboard() {
             <div className="page-header">
                 <div>
                     <h1>Dashboard</h1>
-                    <p className="subtitle">Overview of your commodity deals</p>
+                    <p className="subtitle">
+                        {isAdmin && viewAll ? 'Viewing all users\' deals' : 'Overview of your commodity deals'}
+                    </p>
                 </div>
-                <button className="btn btn-primary" onClick={() => navigate('/deals/new')}>
-                    ➕ Add New Deal
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    {isAdmin && (
+                        <button
+                            className={`btn ${viewAll ? 'btn-secondary' : 'btn-ghost'}`}
+                            onClick={() => setViewAll(v => !v)}
+                        >
+                            {viewAll ? '👥 All Users' : '👤 My Data'}
+                        </button>
+                    )}
+                    <button className="btn btn-primary" onClick={() => navigate('/deals/new')}>
+                        ➕ Add New Deal
+                    </button>
+                </div>
             </div>
+
+            {isAdmin && viewAll && (
+                <div style={{
+                    padding: '10px 16px',
+                    background: 'var(--warning-50)',
+                    border: '1px solid var(--warning-300)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '13px',
+                    color: 'var(--warning-700)',
+                    marginBottom: '16px'
+                }}>
+                    👁 Admin view — showing all users' deals
+                </div>
+            )}
 
             <div className="stats-grid stagger">
                 <div className="stat-card">

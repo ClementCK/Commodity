@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Sources() {
     const [sources, setSources] = useState([])
     const [newSource, setNewSource] = useState({ name: '', reliability_rating: 5, notes: '' })
     const [editingSource, setEditingSource] = useState(null)
     const toast = useToast()
+    const { user } = useAuth()
 
     useEffect(() => { loadSources() }, [])
 
@@ -30,6 +32,7 @@ export default function Sources() {
             name: optimistic.name,
             reliability_rating: optimistic.reliability_rating,
             notes: optimistic.notes,
+            user_id: user.id,
         })
         if (error) {
             setSources(prev => prev.filter(s => s.id !== optimistic.id))
