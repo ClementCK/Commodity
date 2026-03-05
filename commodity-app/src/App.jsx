@@ -14,6 +14,7 @@ const Kanban = lazy(() => import('./pages/Kanban'))
 const DealForm = lazy(() => import('./pages/DealForm'))
 const DealDetail = lazy(() => import('./pages/DealDetail'))
 const DealAnalysis = lazy(() => import('./pages/DealAnalysis'))
+const Assistant = lazy(() => import('./pages/Assistant'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 function PageLoader() {
@@ -40,6 +41,7 @@ export default function App() {
                 <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/kanban" element={<Kanban />} />
+                  <Route path="/assistant" element={<Assistant />} />
                   <Route path="/deals/new" element={<DealForm />} />
                   <Route path="/deals/:id" element={<DealDetail />} />
                   <Route path="/deals/:id/edit" element={<DealForm />} />

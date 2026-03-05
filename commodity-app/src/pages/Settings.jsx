@@ -3,14 +3,20 @@ import { supabase } from '../supabaseClient'
 import { useToast } from '../components/Toast'
 
 export default function Settings() {
-    const [settings, setSettings] = useState([])
     const [sources, setSources] = useState([])
-    const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [editValues, setEditValues] = useState({})
     const [activeTab, setActiveTab] = useState('ai')
     const [newSource, setNewSource] = useState({ name: '', reliability_rating: 5 })
     const [editingSourceId, setEditingSourceId] = useState(null)
+    const toast = useToast()
+
+    // AI Settings state (non-secret only — API key stays in Supabase)
+    const [aiModel, setAiModel] = useState('claude-sonnet-4-5-20250929')
+    const [aiTemperature, setAiTemperature] = useState(0.7)
+    const [aiMaxTokens, setAiMaxTokens] = useState(16000)
+    const [systemPrompt, setSystemPrompt] = useState(
+        `You are an expert AI assistant for a Commodity Deal Tracking system. Your role is to help analyze deals, provide market insights, and answer questions about commodity transactions.\n\nYou have access to the complete database of deals in the system. Use this data to:\n- Answer specific questions about deals\n- Analyze trends and patterns\n- Compare different deals and sources\n- Provide risk assessments\n- Suggest opportunities\n- Generate reports and summaries\n\nAlways be accurate, data-driven, and cite specific deal IDs when referencing deals. Be helpful and provide actionable insights.`
+    )
 
     useEffect(() => {
         loadSettings()
@@ -18,16 +24,26 @@ export default function Settings() {
     }, [])
 
     async function loadSettings() {
-        const { data, error } = await supabase.from('app_settings').select('*')
-        if (error) {
-            console.error('Error loading settings:', error)
-        } else {
-            setSettings(data || [])
-            const vals = {}
-                ; (data || []).forEach(s => { vals[s.key] = s.value })
-            setEditValues(vals)
+        // Load from Supabase (only non-secret settings are returned by RLS)
+        const { data } = await supabase.from('app_settings').select('key, value')
+        if (data?.length) {
+            const map = Object.fromEntries(data.map(s => [s.key, s.value]))
+            if (map.ai_model) setAiModel(map.ai_model)
+            if (map.ai_temperature) setAiTemperature(parseFloat(map.ai_temperature))
+            if (map.ai_max_tokens) setAiMaxTokens(parseInt(map.ai_max_tokens))
+            if (map.system_prompt) setSystemPrompt(map.system_prompt)
         }
-        setLoading(false)
+        // Fallback: also sync to localStorage for Assistant.jsx to use
+        const local = localStorage.getItem('app_settings')
+        if (local) {
+            const parsed = JSON.parse(local)
+            if (!data?.length) {
+                if (parsed.ai_model) setAiModel(parsed.ai_model)
+                if (parsed.ai_temperature) setAiTemperature(parseFloat(parsed.ai_temperature))
+                if (parsed.ai_max_tokens) setAiMaxTokens(parseInt(parsed.ai_max_tokens))
+                if (parsed.system_prompt) setSystemPrompt(parsed.system_prompt)
+            }
+        }
     }
 
     async function loadSources() {
@@ -35,22 +51,34 @@ export default function Settings() {
         setSources(data || [])
     }
 
-    async function saveSettings() {
+    async function handleSave() {
         setSaving(true)
         try {
-            for (const setting of settings) {
-                if (editValues[setting.key] !== setting.value) {
-                    const { error } = await supabase
-                        .from('app_settings')
-                        .update({ value: editValues[setting.key], updated_at: new Date().toISOString() })
-                        .eq('key', setting.key)
-                    if (error) throw error
-                }
+            // Save non-secret settings to Supabase
+            const updates = [
+                { key: 'ai_model', value: aiModel },
+                { key: 'ai_temperature', value: aiTemperature.toString() },
+                { key: 'ai_max_tokens', value: aiMaxTokens.toString() },
+                { key: 'system_prompt', value: systemPrompt },
+            ]
+            for (const update of updates) {
+                await supabase.from('app_settings')
+                    .upsert({ key: update.key, value: update.value, is_secret: false }, { onConflict: 'key' })
             }
-            toast.success('Settings saved successfully!')
-            loadSettings()
+
+            // Also cache in localStorage for Assistant.jsx
+            const existing = JSON.parse(localStorage.getItem('app_settings') || '{}')
+            localStorage.setItem('app_settings', JSON.stringify({
+                ...existing,
+                ai_model: aiModel,
+                ai_temperature: aiTemperature.toString(),
+                ai_max_tokens: aiMaxTokens.toString(),
+                system_prompt: systemPrompt,
+            }))
+
+            toast.success('Settings saved!')
         } catch (err) {
-            toast.error(err.message || 'Failed to save settings')
+            toast.error('Failed to save settings')
         } finally {
             setSaving(false)
         }
@@ -93,99 +121,124 @@ export default function Settings() {
         }
     }
 
-    const toast = useToast()
-
-    if (loading) return <div className="loading-spinner"><div className="spinner" /></div>
-
-    const aiSettings = [
-        { key: 'anthropic_api_key', label: 'Anthropic API Key', desc: 'Required for AI deal scoring', secret: true },
-        {
-            key: 'ai_model', label: 'AI Model', desc: 'Claude model to use for analysis', options: [
-                { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Recommended)' },
-                { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-                { value: 'claude-haiku-4-20250414', label: 'Claude Haiku 4 (Faster, cheaper)' },
-            ]
-        },
-        { key: 'ai_temperature', label: 'Temperature', desc: 'Controls randomness (0.0 = precise, 1.0 = creative)', type: 'range', min: 0, max: 1, step: 0.1 },
-        { key: 'ai_max_tokens', label: 'Max Output Tokens', desc: 'Maximum length of AI response', type: 'number' },
-    ]
-
     return (
         <>
             <div className="page-header">
                 <div>
                     <h1>⚙️ Settings</h1>
-                    <p className="subtitle">Admin configuration panel</p>
+                    <p className="subtitle">Configure AI assistant and sources</p>
                 </div>
             </div>
 
             {/* Tabs */}
             <div style={{ display: 'flex', gap: '4px', marginBottom: '24px' }}>
-                <button
-                    className={`btn ${activeTab === 'ai' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('ai')}
-                >🤖 AI Configuration</button>
-                <button
-                    className={`btn ${activeTab === 'sources' ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setActiveTab('sources')}
-                >🏢 Sources</button>
+                <button className={`btn ${activeTab === 'ai' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('ai')}>
+                    🤖 AI Configuration
+                </button>
+                <button className={`btn ${activeTab === 'sources' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setActiveTab('sources')}>
+                    🏢 Sources
+                </button>
             </div>
 
             {/* AI Configuration Tab */}
             {activeTab === 'ai' && (
                 <div className="card">
                     <div className="card-header">
-                        <h3>🤖 AI & Scoring Configuration</h3>
-                        <button className="btn btn-primary btn-sm" onClick={saveSettings} disabled={saving}>
+                        <h3>🤖 AI Configuration (Claude)</h3>
+                        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
                             {saving ? 'Saving...' : '💾 Save Changes'}
                         </button>
                     </div>
                     <div className="card-body">
-                        {aiSettings.map(s => {
-                            const val = editValues[s.key] ?? ''
-                            return (
-                                <div key={s.key} className="setting-item">
-                                    <div className="setting-info">
-                                        <label>{s.label}</label>
-                                        <p>{s.desc}</p>
-                                    </div>
-                                    <div className="setting-control">
-                                        {s.options ? (
-                                            <select
-                                                className="form-control"
-                                                value={val}
-                                                onChange={e => setEditValues(prev => ({ ...prev, [s.key]: e.target.value }))}
-                                            >
-                                                {s.options.map(o => (
-                                                    <option key={o.value} value={o.value}>{o.label}</option>
-                                                ))}
-                                            </select>
-                                        ) : s.type === 'range' ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                <input
-                                                    type="range"
-                                                    min={s.min}
-                                                    max={s.max}
-                                                    step={s.step}
-                                                    value={val}
-                                                    onChange={e => setEditValues(prev => ({ ...prev, [s.key]: e.target.value }))}
-                                                    style={{ flex: 1 }}
-                                                />
-                                                <span style={{ fontWeight: 600, color: 'var(--text-secondary)', minWidth: '32px' }}>{val}</span>
-                                            </div>
-                                        ) : (
-                                            <input
-                                                className="form-control"
-                                                type={s.secret ? 'password' : s.type || 'text'}
-                                                value={val}
-                                                onChange={e => setEditValues(prev => ({ ...prev, [s.key]: e.target.value }))}
-                                                placeholder={s.secret ? '••••••••••••••••' : ''}
-                                            />
-                                        )}
-                                    </div>
+
+                        {/* API Key notice */}
+                        <div className="setting-item">
+                            <div className="setting-info">
+                                <label>Anthropic API Key</label>
+                                <p>Stored securely in Supabase — never exposed to the browser</p>
+                            </div>
+                            <div className="setting-control">
+                                <div style={{
+                                    padding: '10px 14px',
+                                    background: 'var(--success-50)',
+                                    border: '1px solid var(--success-600)',
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--success-700)',
+                                    fontSize: '13px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}>
+                                    🔒 sk-ant-••••••••••••••••••••••••• (secured)
                                 </div>
-                            )
-                        })}
+                            </div>
+                        </div>
+
+                        <div className="setting-item">
+                            <div className="setting-info">
+                                <label>Model</label>
+                                <p>Claude model to use for AI scoring and analysis</p>
+                            </div>
+                            <div className="setting-control">
+                                <select className="form-control" value={aiModel} onChange={e => setAiModel(e.target.value)}>
+                                    <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5 (Recommended)</option>
+                                    <option value="claude-opus-4-6">Claude Opus 4.6 (Most Capable)</option>
+                                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+                                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (Fastest)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="setting-item">
+                            <div className="setting-info">
+                                <label>Temperature</label>
+                                <p>Controls randomness (0.0 = precise, 1.0 = creative)</p>
+                            </div>
+                            <div className="setting-control">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <input
+                                        type="range" min="0" max="1" step="0.1"
+                                        value={aiTemperature}
+                                        onChange={e => setAiTemperature(parseFloat(e.target.value))}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <span style={{ fontWeight: 600, minWidth: '32px' }}>{aiTemperature.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="setting-item">
+                            <div className="setting-info">
+                                <label>Max Output Tokens</label>
+                                <p>Maximum length of AI response (higher = more detailed)</p>
+                            </div>
+                            <div className="setting-control">
+                                <input
+                                    className="form-control"
+                                    type="number"
+                                    value={aiMaxTokens}
+                                    onChange={e => setAiMaxTokens(parseInt(e.target.value) || 16000)}
+                                    min="1000"
+                                    max="16000"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="setting-item">
+                            <div className="setting-info">
+                                <label>System Prompt</label>
+                                <p>Instructions for the AI assistant's behavior and role</p>
+                            </div>
+                            <div className="setting-control">
+                                <textarea
+                                    className="form-control"
+                                    value={systemPrompt}
+                                    onChange={e => setSystemPrompt(e.target.value)}
+                                    rows={8}
+                                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '13px' }}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -193,11 +246,8 @@ export default function Settings() {
             {/* Sources Tab */}
             {activeTab === 'sources' && (
                 <div className="card">
-                    <div className="card-header">
-                        <h3>🏢 Source Management</h3>
-                    </div>
+                    <div className="card-header"><h3>🏢 Source Management</h3></div>
                     <div className="card-body">
-                        {/* Add Source Form */}
                         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', padding: '16px', background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)' }}>
                             <input
                                 className="form-control"
@@ -208,10 +258,7 @@ export default function Settings() {
                             />
                             <input
                                 className="form-control"
-                                type="number"
-                                min="0"
-                                max="10"
-                                step="0.1"
+                                type="number" min="0" max="10" step="0.1"
                                 placeholder="Rating"
                                 value={newSource.reliability_rating}
                                 onChange={e => setNewSource(prev => ({ ...prev, reliability_rating: e.target.value }))}
@@ -220,7 +267,6 @@ export default function Settings() {
                             <button className="btn btn-primary btn-sm" onClick={addSource}>+ Add</button>
                         </div>
 
-                        {/* Sources Table */}
                         <table className="data-table">
                             <thead>
                                 <tr>
@@ -236,18 +282,14 @@ export default function Settings() {
                                         <td>
                                             {editingSourceId === source.id ? (
                                                 <input className="form-control" defaultValue={source.name}
-                                                    id={`edit-name-${source.id}`} style={{ padding: '6px 10px' }}
-                                                />
-                                            ) : (
-                                                <strong>{source.name}</strong>
-                                            )}
+                                                    id={`edit-name-${source.id}`} style={{ padding: '6px 10px' }} />
+                                            ) : <strong>{source.name}</strong>}
                                         </td>
                                         <td>
                                             {editingSourceId === source.id ? (
                                                 <input className="form-control" type="number" min="0" max="10" step="0.1"
                                                     defaultValue={source.reliability_rating}
-                                                    id={`edit-rating-${source.id}`} style={{ width: '80px', padding: '6px 10px' }}
-                                                />
+                                                    id={`edit-rating-${source.id}`} style={{ width: '80px', padding: '6px 10px' }} />
                                             ) : (
                                                 <span style={{ fontWeight: 600, color: source.reliability_rating >= 7 ? 'var(--success-600)' : source.reliability_rating >= 4 ? 'var(--warning-600)' : 'var(--danger-600)' }}>
                                                     {source.reliability_rating}/10
@@ -275,11 +317,7 @@ export default function Settings() {
                                     </tr>
                                 ))}
                                 {sources.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>
-                                            No sources yet. Add one above.
-                                        </td>
-                                    </tr>
+                                    <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px' }}>No sources yet.</td></tr>
                                 )}
                             </tbody>
                         </table>
