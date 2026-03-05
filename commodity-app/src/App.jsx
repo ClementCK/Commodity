@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './components/Toast'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Lazy-loaded pages for code splitting
 const Login = lazy(() => import('./pages/Login'))
@@ -28,6 +29,7 @@ function PageLoader() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
@@ -63,5 +65,6 @@ export default function App() {
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   )
 }

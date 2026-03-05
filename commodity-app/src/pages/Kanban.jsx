@@ -23,7 +23,7 @@ export default function Kanban() {
     async function loadDeals() {
         const { data, error } = await supabase
             .from('deals')
-            .select('*')
+            .select('id, legacy_id, commodity_type, source_name, origin_country, status, ai_score, price_type, price, price_currency, net_discount, quantity, quantity_unit')
             .order('date_received', { ascending: false })
             .limit(200)
 

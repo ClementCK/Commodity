@@ -17,39 +17,52 @@ export default function Sources() {
 
     async function addSource() {
         if (!newSource.name.trim()) return
-        const { error } = await supabase.from('sources').insert({
+        const optimistic = {
+            id: `temp-${Date.now()}`,
             name: newSource.name.trim(),
             reliability_rating: parseFloat(newSource.reliability_rating) || 5,
             notes: newSource.notes.trim() || null,
+        }
+        setSources(prev => [...prev, optimistic])
+        setNewSource({ name: '', reliability_rating: 5, notes: '' })
+
+        const { error } = await supabase.from('sources').insert({
+            name: optimistic.name,
+            reliability_rating: optimistic.reliability_rating,
+            notes: optimistic.notes,
         })
         if (error) {
+            setSources(prev => prev.filter(s => s.id !== optimistic.id))
             toast.error(error.message)
         } else {
             toast.success('Source added!')
-            setNewSource({ name: '', reliability_rating: 5, notes: '' })
             loadSources()
         }
     }
 
     async function updateSource(sourceId, updates) {
+        setSources(prev => prev.map(s => s.id === sourceId ? { ...s, ...updates } : s))
+        setEditingSource(null)
+
         const { error } = await supabase.from('sources').update(updates).eq('id', sourceId)
         if (error) {
             toast.error(error.message)
+            loadSources()
         } else {
             toast.success('Source updated!')
-            setEditingSource(null)
-            loadSources()
         }
     }
 
     async function deleteSource(sourceId) {
         if (!window.confirm('Delete this source?')) return
+        setSources(prev => prev.filter(s => s.id !== sourceId))
+
         const { error } = await supabase.from('sources').delete().eq('id', sourceId)
         if (error) {
             toast.error(error.message)
+            loadSources()
         } else {
             toast.success('Source deleted')
-            loadSources()
         }
     }
 

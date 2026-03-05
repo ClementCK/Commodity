@@ -16,7 +16,7 @@ export default function Dashboard() {
         try {
             const { data, error } = await supabase
                 .from('deals')
-                .select('*')
+                .select('id, legacy_id, commodity_type, source_name, origin_country, price_type, price, price_currency, net_discount, quantity, quantity_unit, status, date_received, ai_score')
                 .order('date_received', { ascending: false })
                 .limit(50)
 
