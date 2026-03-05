@@ -42,8 +42,7 @@ export default function Assistant() {
 
     function getDefaultSettings() {
         return {
-            gemini_api_key: 'AIzaSyBpg2yq48fDInDAlS9CXFLuGd3mlMgrAxs',
-            ai_model: 'gemini-3-pro-preview',
+            ai_model: 'claude-sonnet-4-5-20250929',
             ai_temperature: '0.7',
             ai_max_tokens: '8192',
             ai_top_p: '0.95',
