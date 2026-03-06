@@ -31,7 +31,9 @@ export function AuthProvider({ children }) {
                     setProfile(null)
                     setLoading(false)
                 } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-                    setUser(session.user)
+                    // Keep same object reference if ID unchanged — prevents unnecessary
+                    // useEffect([user]) re-runs in Dashboard, Kanban, etc.
+                    setUser(prev => prev?.id === session.user.id ? prev : session.user)
                 }
             }
         )

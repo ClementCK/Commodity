@@ -14,6 +14,7 @@ const COLUMNS = [
 export default function Kanban() {
     const [deals, setDeals] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [draggedId, setDraggedId] = useState(null)
     const [dragOverCol, setDragOverCol] = useState(null)
     const [viewAll, setViewAll] = useState(false)
@@ -22,35 +23,44 @@ export default function Kanban() {
     const toast = useToast()
     const { user, isAdmin } = useAuth()
 
-    useEffect(() => { if (user) loadDeals() }, [user, viewAll])
+    // Use user.id (string) not user (object) so TOKEN_REFRESHED doesn't retrigger
+    useEffect(() => {
+        if (!user?.id) return
+        setLoading(true)
+        setLoadError(null)
+        loadDeals()
+    }, [user?.id, viewAll])
 
     async function loadDeals() {
-        let query = supabase
-            .from('deals')
-            .select('id, legacy_id, commodity_type, source_name, origin_country, status, ai_score, price_type, price, price_currency, net_discount, quantity, quantity_unit, created_by')
-            .order('date_received', { ascending: false })
-            .limit(200)
+        try {
+            let query = supabase
+                .from('deals')
+                .select('id, legacy_id, commodity_type, source_name, origin_country, status, ai_score, price_type, price, price_currency, net_discount, quantity, quantity_unit, created_by')
+                .order('date_received', { ascending: false })
+                .limit(200)
 
-        if (!isAdmin || !viewAll) {
-            query = query.eq('created_by', user.id)
-        }
+            if (!isAdmin || !viewAll) {
+                query = query.eq('created_by', user.id)
+            }
 
-        const { data, error } = await query
-        if (error) {
-            toast.error('Failed to load deals')
-        } else {
+            const { data, error } = await query
+            if (error) throw error
+
             setDeals(data || [])
-        }
-        setLoading(false)
 
-        // Load profiles for owner labels (admin viewAll only)
-        if (isAdmin && viewAll) {
-            const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
-            const map = {}
-            ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
-            setProfiles(map)
-        } else {
-            setProfiles({})
+            if (isAdmin && viewAll) {
+                const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
+                const map = {}
+                ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
+                setProfiles(map)
+            } else {
+                setProfiles({})
+            }
+        } catch (err) {
+            console.error('Kanban load error:', err)
+            setLoadError(err.message || 'Failed to load deals')
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -61,8 +71,9 @@ export default function Kanban() {
         const deal = deals.find(d => d.id === draggedId)
         if (!deal || deal.status === newStatus) { setDraggedId(null); return }
 
-        // Optimistic update
+        // Optimistic update — apply immediately
         setDeals(prev => prev.map(d => d.id === draggedId ? { ...d, status: newStatus } : d))
+        setDraggedId(null)
 
         const { error } = await supabase
             .from('deals')
@@ -71,11 +82,11 @@ export default function Kanban() {
 
         if (error) {
             toast.error('Failed to update status')
-            loadDeals() // Revert
+            // Revert the optimistic update
+            setDeals(prev => prev.map(d => d.id === deal.id ? { ...d, status: deal.status } : d))
         } else {
-            toast.success(`Deal moved to ${newStatus.replace(/_/g, ' ')}`)
+            toast.success(`Moved to ${newStatus.replace(/_/g, ' ')}`)
         }
-        setDraggedId(null)
     }
 
     function formatPrice(deal) {
@@ -88,13 +99,26 @@ export default function Kanban() {
         return <div className="loading-spinner"><div className="spinner" /></div>
     }
 
+    if (loadError) {
+        return (
+            <div className="empty-state">
+                <div className="icon">⚠️</div>
+                <h3>Could not load pipeline</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{loadError}</p>
+                <button className="btn btn-primary" onClick={() => { setLoading(true); setLoadError(null); loadDeals() }}>
+                    Try Again
+                </button>
+            </div>
+        )
+    }
+
     return (
         <>
             <div className="page-header">
                 <div>
                     <h1>Deal Pipeline</h1>
                     <p className="subtitle">
-                        {isAdmin && viewAll ? 'Viewing all users\' deals' : 'Drag and drop to update deal status'}
+                        {isAdmin && viewAll ? "Viewing all users' deals" : 'Drag and drop to update deal status'}
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -143,7 +167,7 @@ export default function Kanban() {
                                         >
                                             <div className="kanban-card-meta">
                                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                    #{deal.legacy_id || deal.id.slice(0, 6)}
+                                                    #{deal.legacy_id || deal.id?.slice(0, 6) || '?'}
                                                 </span>
                                                 {deal.ai_score != null ? (
                                                     <span className={`badge ${deal.ai_score >= 70 ? 'badge-done' : deal.ai_score >= 50 ? 'badge-unassigned' : 'badge-closed_lost'}`}>
@@ -153,8 +177,8 @@ export default function Kanban() {
                                                     <span className="badge" style={{ background: 'var(--bg-inset)', color: 'var(--text-muted)' }}>—</span>
                                                 )}
                                             </div>
-                                            <div className="kanban-card-commodity">📦 {deal.commodity_type}</div>
-                                            <div className="kanban-card-source">👤 {deal.source_name}</div>
+                                            <div className="kanban-card-commodity">📦 {deal.commodity_type || 'Unknown'}</div>
+                                            <div className="kanban-card-source">👤 {deal.source_name || '—'}</div>
                                             <div className="kanban-card-price">💰 {formatPrice(deal)}</div>
                                             <div className="kanban-card-origin">📍 {deal.origin_country || 'Unknown'}</div>
                                             {isAdmin && viewAll && deal.created_by && (

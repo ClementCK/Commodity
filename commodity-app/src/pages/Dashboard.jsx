@@ -7,14 +7,19 @@ export default function Dashboard() {
     const [deals, setDeals] = useState([])
     const [stats, setStats] = useState({ total: 0, unassigned: 0, inProgress: 0, done: 0 })
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [viewAll, setViewAll] = useState(false)
     const [profiles, setProfiles] = useState({})
     const navigate = useNavigate()
     const { user, isAdmin } = useAuth()
 
+    // Use user.id (string) not user (object) so TOKEN_REFRESHED doesn't retrigger
     useEffect(() => {
-        if (user) loadData()
-    }, [user, viewAll])
+        if (!user?.id) return
+        setLoading(true)
+        setLoadError(null)
+        loadData()
+    }, [user?.id, viewAll])
 
     async function loadData() {
         try {
@@ -30,9 +35,9 @@ export default function Dashboard() {
 
             const { data, error } = await query
             if (error) throw error
-            setDeals(data || [])
 
             const all = data || []
+            setDeals(all)
             setStats({
                 total: all.length,
                 unassigned: all.filter(d => d.status === 'unassigned').length,
@@ -40,7 +45,6 @@ export default function Dashboard() {
                 done: all.filter(d => d.status === 'done').length,
             })
 
-            // Load profile names for owner column (admin viewAll only)
             if (isAdmin && viewAll) {
                 const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
                 const map = {}
@@ -50,7 +54,8 @@ export default function Dashboard() {
                 setProfiles({})
             }
         } catch (err) {
-            console.error('Error loading deals:', err)
+            console.error('Dashboard load error:', err)
+            setLoadError(err.message || 'Failed to load deals')
         } finally {
             setLoading(false)
         }
@@ -76,13 +81,26 @@ export default function Dashboard() {
         return <div className="loading-spinner"><div className="spinner" /></div>
     }
 
+    if (loadError) {
+        return (
+            <div className="empty-state">
+                <div className="icon">⚠️</div>
+                <h3>Could not load deals</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{loadError}</p>
+                <button className="btn btn-primary" onClick={() => { setLoading(true); setLoadError(null); loadData() }}>
+                    Try Again
+                </button>
+            </div>
+        )
+    }
+
     return (
         <>
             <div className="page-header">
                 <div>
                     <h1>Dashboard</h1>
                     <p className="subtitle">
-                        {isAdmin && viewAll ? 'Viewing all users\' deals' : 'Overview of your commodity deals'}
+                        {isAdmin && viewAll ? "Viewing all users' deals" : 'Overview of your commodity deals'}
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>

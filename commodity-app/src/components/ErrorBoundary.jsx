@@ -7,6 +7,18 @@ export default class ErrorBoundary extends Component {
     }
 
     static getDerivedStateFromError(error) {
+        // ChunkLoadError = Vercel deployed new version, old chunk hashes are gone.
+        // Auto-reload fetches the fresh chunks — transparent to the user.
+        const msg = error?.message || ''
+        if (
+            error?.name === 'ChunkLoadError' ||
+            msg.includes('Failed to fetch dynamically imported module') ||
+            msg.includes('Loading chunk') ||
+            msg.includes('Importing a module script failed')
+        ) {
+            window.location.reload()
+            return { hasError: false, error: null }
+        }
         return { hasError: true, error }
     }
 
