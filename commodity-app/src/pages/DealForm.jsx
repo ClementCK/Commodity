@@ -42,7 +42,7 @@ export default function DealForm() {
         additional_notes: '',
     })
 
-    useEffect(() => { if (user) loadSources() }, [user])
+    useEffect(() => { if (user?.id) loadSources() }, [user?.id])
     useEffect(() => {
         if (authLoading) return  // wait for auth before loading deal for edit
         if (isEdit) loadDeal()

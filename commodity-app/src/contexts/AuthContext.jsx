@@ -16,45 +16,35 @@ export function AuthProvider({ children }) {
         if (initialized.current) return
         initialized.current = true
 
-        init()
-
+        // onAuthStateChange is the single source of truth for auth state.
+        // INITIAL_SESSION fires immediately with the stored session (or null).
+        // This replaces a separate getSession() call and eliminates the race
+        // condition where both init() and SIGNED_IN ran concurrently.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                console.log('[Auth] event:', event)
-                if (event === 'SIGNED_IN' && session?.user) {
-                    setUser(session.user)
-                    const p = await loadProfile(session.user.id)
-                    setProfile(p)
-                    setLoading(false)
-                } else if (event === 'SIGNED_OUT') {
+                if (session?.user) {
+                    // Keep stable object reference when ID is unchanged —
+                    // prevents useEffect([user?.id]) hooks from re-running unnecessarily
+                    setUser(prev => prev?.id === session.user.id ? prev : session.user)
+
+                    // Only reload profile on events that change user identity.
+                    // TOKEN_REFRESHED only updates the JWT — name/role don't change.
+                    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+                        const p = await loadProfile(session.user.id)
+                        setProfile(p)
+                    }
+                } else {
                     setUser(null)
                     setProfile(null)
-                    setLoading(false)
-                } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-                    // Keep same object reference if ID unchanged — prevents unnecessary
-                    // useEffect([user]) re-runs in Dashboard, Kanban, etc.
-                    setUser(prev => prev?.id === session.user.id ? prev : session.user)
                 }
+
+                // Always resolve the loading gate so ProtectedRoute can render pages
+                setLoading(false)
             }
         )
 
         return () => subscription.unsubscribe()
     }, [])
-
-    async function init() {
-        try {
-            const { data: { session } } = await supabase.auth.getSession()
-            if (session?.user) {
-                setUser(session.user)
-                const p = await loadProfile(session.user.id)
-                setProfile(p)
-            }
-        } catch (err) {
-            console.error('[Auth] init error:', err)
-        } finally {
-            setLoading(false)
-        }
-    }
 
     async function loadProfile(userId) {
         try {

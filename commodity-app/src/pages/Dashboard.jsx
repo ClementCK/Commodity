@@ -13,13 +13,15 @@ export default function Dashboard() {
     const navigate = useNavigate()
     const { user, isAdmin } = useAuth()
 
-    // Use user.id (string) not user (object) so TOKEN_REFRESHED doesn't retrigger
+    // user?.id: stable string, won't retrigger on token refresh
+    // isAdmin: derived from profile (loads async after user) — must be included
+    // so an admin gets the correct query filter once profile resolves
     useEffect(() => {
         if (!user?.id) return
         setLoading(true)
         setLoadError(null)
         loadData()
-    }, [user?.id, viewAll])
+    }, [user?.id, viewAll, isAdmin])
 
     async function loadData() {
         try {

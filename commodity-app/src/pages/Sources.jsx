@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function Sources() {
     const [sources, setSources] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
     const [newSource, setNewSource] = useState({ name: '', reliability_rating: 5, notes: '' })
     const [editingSource, setEditingSource] = useState(null)
     const [viewAll, setViewAll] = useState(false)
@@ -12,36 +14,45 @@ export default function Sources() {
     const toast = useToast()
     const { user, isAdmin } = useAuth()
 
-    useEffect(() => { if (user) loadSources() }, [user, viewAll])
+    // Use user?.id (stable string) not user (object) — avoids retrigger on token refresh.
+    // Include isAdmin because it affects the query filter and loads after user.
+    useEffect(() => {
+        if (!user?.id) return
+        setLoading(true)
+        setLoadError(null)
+        loadSources()
+    }, [user?.id, viewAll, isAdmin])
 
     async function loadSources() {
-        let query = supabase.from('sources').select('*').order('name')
+        try {
+            let query = supabase.from('sources').select('*').order('name')
 
-        // Admin in "my data" mode: filter to their own sources
-        if (!isAdmin || !viewAll) {
-            query = query.eq('user_id', user.id)
-        }
+            if (!isAdmin || !viewAll) {
+                query = query.eq('user_id', user.id)
+            }
 
-        const { data, error } = await query
-        if (error) {
-            toast.error('Failed to load sources')
-        } else {
+            const { data, error } = await query
+            if (error) throw error
             setSources(data || [])
-        }
 
-        // Load profile names for owner column (admin viewAll only)
-        if (isAdmin && viewAll) {
-            const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
-            const map = {}
-            ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
-            setProfiles(map)
-        } else {
-            setProfiles({})
+            if (isAdmin && viewAll) {
+                const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
+                const map = {}
+                ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
+                setProfiles(map)
+            } else {
+                setProfiles({})
+            }
+        } catch (err) {
+            console.error('Sources load error:', err)
+            setLoadError(err.message || 'Failed to load sources')
+        } finally {
+            setLoading(false)
         }
     }
 
     async function addSource() {
-        if (!newSource.name.trim() || !user) return
+        if (!newSource.name.trim() || !user?.id) return
         const optimistic = {
             id: `temp-${Date.now()}`,
             name: newSource.name.trim(),
@@ -93,13 +104,30 @@ export default function Sources() {
         }
     }
 
+    if (loading) {
+        return <div className="loading-spinner"><div className="spinner" /></div>
+    }
+
+    if (loadError) {
+        return (
+            <div className="empty-state">
+                <div className="icon">⚠️</div>
+                <h3>Could not load sources</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{loadError}</p>
+                <button className="btn btn-primary" onClick={() => { setLoading(true); setLoadError(null); loadSources() }}>
+                    Try Again
+                </button>
+            </div>
+        )
+    }
+
     return (
         <>
             <div className="page-header">
                 <div>
                     <h1>🏢 Sources</h1>
                     <p className="subtitle">
-                        {isAdmin && viewAll ? 'Viewing all users\' sources' : 'Manage your commodity sources'}
+                        {isAdmin && viewAll ? "Viewing all users' sources" : 'Manage your commodity sources'}
                     </p>
                 </div>
                 {isAdmin && (
