@@ -17,6 +17,7 @@ export default function Kanban() {
     const [draggedId, setDraggedId] = useState(null)
     const [dragOverCol, setDragOverCol] = useState(null)
     const [viewAll, setViewAll] = useState(false)
+    const [profiles, setProfiles] = useState({})
     const navigate = useNavigate()
     const toast = useToast()
     const { user, isAdmin } = useAuth()
@@ -26,7 +27,7 @@ export default function Kanban() {
     async function loadDeals() {
         let query = supabase
             .from('deals')
-            .select('id, legacy_id, commodity_type, source_name, origin_country, status, ai_score, price_type, price, price_currency, net_discount, quantity, quantity_unit')
+            .select('id, legacy_id, commodity_type, source_name, origin_country, status, ai_score, price_type, price, price_currency, net_discount, quantity, quantity_unit, created_by')
             .order('date_received', { ascending: false })
             .limit(200)
 
@@ -41,6 +42,16 @@ export default function Kanban() {
             setDeals(data || [])
         }
         setLoading(false)
+
+        // Load profiles for owner labels (admin viewAll only)
+        if (isAdmin && viewAll) {
+            const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
+            const map = {}
+            ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
+            setProfiles(map)
+        } else {
+            setProfiles({})
+        }
     }
 
     async function handleDrop(newStatus) {
@@ -146,6 +157,11 @@ export default function Kanban() {
                                             <div className="kanban-card-source">👤 {deal.source_name}</div>
                                             <div className="kanban-card-price">💰 {formatPrice(deal)}</div>
                                             <div className="kanban-card-origin">📍 {deal.origin_country || 'Unknown'}</div>
+                                            {isAdmin && viewAll && deal.created_by && (
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid var(--border-default)' }}>
+                                                    🙍 {profiles[deal.created_by] || '—'}
+                                                </div>
+                                            )}
                                         </div>
                                     ))
                                 )}

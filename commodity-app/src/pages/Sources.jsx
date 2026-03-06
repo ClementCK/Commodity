@@ -7,23 +7,47 @@ export default function Sources() {
     const [sources, setSources] = useState([])
     const [newSource, setNewSource] = useState({ name: '', reliability_rating: 5, notes: '' })
     const [editingSource, setEditingSource] = useState(null)
+    const [viewAll, setViewAll] = useState(false)
+    const [profiles, setProfiles] = useState({})
     const toast = useToast()
-    const { user } = useAuth()
+    const { user, isAdmin } = useAuth()
 
-    useEffect(() => { loadSources() }, [])
+    useEffect(() => { if (user) loadSources() }, [user, viewAll])
 
     async function loadSources() {
-        const { data } = await supabase.from('sources').select('*').order('name')
-        setSources(data || [])
+        let query = supabase.from('sources').select('*').order('name')
+
+        // Admin in "my data" mode: filter to their own sources
+        if (!isAdmin || !viewAll) {
+            query = query.eq('user_id', user.id)
+        }
+
+        const { data, error } = await query
+        if (error) {
+            toast.error('Failed to load sources')
+        } else {
+            setSources(data || [])
+        }
+
+        // Load profile names for owner column (admin viewAll only)
+        if (isAdmin && viewAll) {
+            const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
+            const map = {}
+            ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
+            setProfiles(map)
+        } else {
+            setProfiles({})
+        }
     }
 
     async function addSource() {
-        if (!newSource.name.trim()) return
+        if (!newSource.name.trim() || !user) return
         const optimistic = {
             id: `temp-${Date.now()}`,
             name: newSource.name.trim(),
             reliability_rating: parseFloat(newSource.reliability_rating) || 5,
             notes: newSource.notes.trim() || null,
+            user_id: user.id,
         }
         setSources(prev => [...prev, optimistic])
         setNewSource({ name: '', reliability_rating: 5, notes: '' })
@@ -74,64 +98,76 @@ export default function Sources() {
             <div className="page-header">
                 <div>
                     <h1>🏢 Sources</h1>
-                    <p className="subtitle">Manage commodity sources and their reliability ratings</p>
+                    <p className="subtitle">
+                        {isAdmin && viewAll ? 'Viewing all users\' sources' : 'Manage your commodity sources'}
+                    </p>
                 </div>
+                {isAdmin && (
+                    <button
+                        className={`btn ${viewAll ? 'btn-secondary' : 'btn-ghost'}`}
+                        onClick={() => setViewAll(v => !v)}
+                    >
+                        {viewAll ? '👥 All Users' : '👤 My Data'}
+                    </button>
+                )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* Add New Source */}
-                <div className="card">
-                    <div className="card-header"><h3>+ Add New Source</h3></div>
-                    <div className="card-body">
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '12px', alignItems: 'start' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <input
-                                    className="form-control"
-                                    placeholder="Source name (e.g. Trafigura, Glencore...)"
-                                    value={newSource.name}
-                                    onChange={e => setNewSource(prev => ({ ...prev, name: e.target.value }))}
-                                    onKeyDown={e => e.key === 'Enter' && addSource()}
-                                />
-                                <textarea
-                                    className="form-control"
-                                    placeholder="Notes (optional)..."
-                                    value={newSource.notes}
-                                    onChange={e => setNewSource(prev => ({ ...prev, notes: e.target.value }))}
-                                    rows={2}
-                                    style={{ resize: 'vertical', fontSize: '13px' }}
-                                />
+                {/* Add New Source — only shown in own data mode */}
+                {(!isAdmin || !viewAll) && (
+                    <div className="card">
+                        <div className="card-header"><h3>+ Add New Source</h3></div>
+                        <div className="card-body">
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '12px', alignItems: 'start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <input
+                                        className="form-control"
+                                        placeholder="Source name (e.g. Trafigura, Glencore...)"
+                                        value={newSource.name}
+                                        onChange={e => setNewSource(prev => ({ ...prev, name: e.target.value }))}
+                                        onKeyDown={e => e.key === 'Enter' && addSource()}
+                                    />
+                                    <textarea
+                                        className="form-control"
+                                        placeholder="Notes (optional)..."
+                                        value={newSource.notes}
+                                        onChange={e => setNewSource(prev => ({ ...prev, notes: e.target.value }))}
+                                        rows={2}
+                                        style={{ resize: 'vertical', fontSize: '13px' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rating (0–10)</label>
+                                    <input
+                                        className="form-control"
+                                        type="number" min="0" max="10" step="0.1"
+                                        value={newSource.reliability_rating}
+                                        onChange={e => setNewSource(prev => ({ ...prev, reliability_rating: e.target.value }))}
+                                        style={{ width: '90px' }}
+                                    />
+                                </div>
+                                <button className="btn btn-primary" onClick={addSource} style={{ alignSelf: 'flex-start', marginTop: '20px' }}>
+                                    + Add
+                                </button>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rating (0–10)</label>
-                                <input
-                                    className="form-control"
-                                    type="number" min="0" max="10" step="0.1"
-                                    value={newSource.reliability_rating}
-                                    onChange={e => setNewSource(prev => ({ ...prev, reliability_rating: e.target.value }))}
-                                    style={{ width: '90px' }}
-                                />
-                            </div>
-                            <button className="btn btn-primary" onClick={addSource} style={{ alignSelf: 'flex-start', marginTop: '20px' }}>
-                                + Add
-                            </button>
                         </div>
                     </div>
-                </div>
+                )}
 
                 {/* Source Cards */}
                 {sources.length === 0 && (
                     <div className="empty-state">
                         <div className="icon">🏢</div>
                         <h3>No sources yet</h3>
-                        <p>Add your first source above.</p>
+                        <p>{isAdmin && viewAll ? 'No sources from any user.' : 'Add your first source above.'}</p>
                     </div>
                 )}
 
                 {sources.map(source => {
                     const isEditing = editingSource?.id === source.id
-                    const ratingColor = source.reliability_rating >= 7
+                    const ratingColor = (source.reliability_rating ?? 0) >= 7
                         ? 'var(--success-600)'
-                        : source.reliability_rating >= 4
+                        : (source.reliability_rating ?? 0) >= 4
                             ? 'var(--warning-600)'
                             : 'var(--danger-600)'
 
@@ -179,7 +215,7 @@ export default function Sources() {
                                 ) : (
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px', flexWrap: 'wrap' }}>
                                                 <strong style={{ fontSize: '16px' }}>{source.name}</strong>
                                                 <span style={{ fontWeight: 700, fontSize: '18px', color: ratingColor }}>
                                                     {source.reliability_rating}/10
@@ -187,6 +223,11 @@ export default function Sources() {
                                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                                                     {source.total_deals || 0} deals · {source.successful_deals || 0} successful
                                                 </span>
+                                                {isAdmin && viewAll && source.user_id && (
+                                                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--bg-inset)', padding: '2px 8px', borderRadius: '999px' }}>
+                                                        👤 {profiles[source.user_id] || 'Unknown'}
+                                                    </span>
+                                                )}
                                             </div>
                                             {source.notes && (
                                                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>

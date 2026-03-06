@@ -42,7 +42,7 @@ export default function DealForm() {
         additional_notes: '',
     })
 
-    useEffect(() => { loadSources() }, [])
+    useEffect(() => { if (user) loadSources() }, [user])
     useEffect(() => { if (isEdit) loadDeal() }, [id])
 
     async function loadSources() {

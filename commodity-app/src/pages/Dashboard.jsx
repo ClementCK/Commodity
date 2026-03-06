@@ -8,6 +8,7 @@ export default function Dashboard() {
     const [stats, setStats] = useState({ total: 0, unassigned: 0, inProgress: 0, done: 0 })
     const [loading, setLoading] = useState(true)
     const [viewAll, setViewAll] = useState(false)
+    const [profiles, setProfiles] = useState({})
     const navigate = useNavigate()
     const { user, isAdmin } = useAuth()
 
@@ -19,7 +20,7 @@ export default function Dashboard() {
         try {
             let query = supabase
                 .from('deals')
-                .select('id, legacy_id, commodity_type, source_name, origin_country, price_type, price, price_currency, net_discount, quantity, quantity_unit, status, date_received, ai_score')
+                .select('id, legacy_id, commodity_type, source_name, origin_country, price_type, price, price_currency, net_discount, quantity, quantity_unit, status, date_received, ai_score, created_by')
                 .order('date_received', { ascending: false })
                 .limit(50)
 
@@ -38,6 +39,16 @@ export default function Dashboard() {
                 inProgress: all.filter(d => d.status === 'in_progress').length,
                 done: all.filter(d => d.status === 'done').length,
             })
+
+            // Load profile names for owner column (admin viewAll only)
+            if (isAdmin && viewAll) {
+                const { data: profilesData } = await supabase.from('profiles').select('id, full_name, email')
+                const map = {}
+                ;(profilesData || []).forEach(p => { map[p.id] = p.full_name || p.email || 'Unknown' })
+                setProfiles(map)
+            } else {
+                setProfiles({})
+            }
         } catch (err) {
             console.error('Error loading deals:', err)
         } finally {
@@ -150,6 +161,7 @@ export default function Dashboard() {
                                         <th>Status</th>
                                         <th>Date</th>
                                         <th>AI Score</th>
+                                        {isAdmin && viewAll && <th>Owner</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -168,6 +180,11 @@ export default function Dashboard() {
                                             </td>
                                             <td>{deal.date_received ? new Date(deal.date_received).toLocaleDateString() : '—'}</td>
                                             <td>{formatScore(deal.ai_score)}</td>
+                                            {isAdmin && viewAll && (
+                                                <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                    {profiles[deal.created_by] || '—'}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
