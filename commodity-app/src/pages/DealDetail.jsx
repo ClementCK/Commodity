@@ -7,31 +7,51 @@ import { useToast } from '../components/Toast'
 export default function DealDetail() {
     const { id } = useParams()
     const navigate = useNavigate()
-    const { isAdmin } = useAuth()
+    const { isAdmin, loading: authLoading } = useAuth()
     const toast = useToast()
     const [deal, setDeal] = useState(null)
     const [analysis, setAnalysis] = useState(null)
     const [loading, setLoading] = useState(true)
     const [scoring, setScoring] = useState(false)
     const [showDelete, setShowDelete] = useState(false)
+    const [loadError, setLoadError] = useState(null)
 
-    useEffect(() => { loadDeal() }, [id])
+    useEffect(() => {
+        if (authLoading) return  // wait for auth session before querying
+        loadDeal()
+    }, [id, authLoading])
 
     async function loadDeal() {
+        setLoading(true)
+        setLoadError(null)
+
         const { data, error } = await supabase
             .from('deals')
             .select('*')
             .eq('id', id)
             .single()
 
-        if (error || !data) {
+        if (error) {
+            // PGRST116 = 0 rows (deal truly not found); anything else = network/server error
+            if (error.code === 'PGRST116' || error.code === '42501') {
+                toast.error('Deal not found')
+                navigate('/')
+            } else {
+                setLoadError(error.message || 'Failed to load deal')
+            }
+            setLoading(false)
+            return
+        }
+
+        if (!data) {
             toast.error('Deal not found')
             navigate('/')
             return
         }
+
         setDeal(data)
 
-        // Load latest analysis
+        // Load latest analysis (failure is non-fatal — just skip)
         const { data: analyses } = await supabase
             .from('deal_analyses')
             .select('*')
@@ -69,8 +89,23 @@ export default function DealDetail() {
         }
     }
 
-    if (loading) {
+    if (loading || authLoading) {
         return <div className="loading-spinner"><div className="spinner" /></div>
+    }
+
+    // Network/server error — show retry instead of crashing
+    if (loadError) {
+        return (
+            <div className="empty-state">
+                <div className="icon">⚠️</div>
+                <h3>Could not load deal</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{loadError}</p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
+                    <button className="btn btn-primary" onClick={loadDeal}>Try Again</button>
+                    <button className="btn btn-secondary" onClick={() => navigate('/')}>Dashboard</button>
+                </div>
+            </div>
+        )
     }
 
     if (!deal) return null
@@ -93,6 +128,8 @@ export default function DealDetail() {
         d.setMonth(d.getMonth() + deal.contract_duration_months)
         return d.toLocaleDateString()
     }
+
+    const status = deal.status || 'unassigned'
 
     return (
         <>
@@ -153,7 +190,6 @@ export default function DealDetail() {
                                 <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{deal.delivery_schedule_notes}</p>
                             </div>
                         )}
-
                         {deal.deal_text && (
                             <div style={{ marginTop: '24px' }}>
                                 <h4 style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Raw Deal Text</h4>
@@ -162,7 +198,6 @@ export default function DealDetail() {
                                 </div>
                             </div>
                         )}
-
                         {deal.additional_notes && (
                             <div style={{ marginTop: '16px' }}>
                                 <h4 style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Notes</h4>
@@ -177,8 +212,8 @@ export default function DealDetail() {
                     <div className="card">
                         <div className="card-header"><h3>📊 Status</h3></div>
                         <div className="card-body" style={{ textAlign: 'center' }}>
-                            <span className={`badge badge-${deal.status}`} style={{ fontSize: '14px', padding: '8px 20px' }}>
-                                {deal.status.replace(/_/g, ' ')}
+                            <span className={`badge badge-${status}`} style={{ fontSize: '14px', padding: '8px 20px' }}>
+                                {status.replace(/_/g, ' ')}
                             </span>
                         </div>
                     </div>
@@ -191,9 +226,7 @@ export default function DealDetail() {
                                     <div style={{ fontSize: '64px', fontWeight: 800, color: deal.ai_score >= 70 ? 'var(--success-600)' : deal.ai_score >= 50 ? 'var(--warning-600)' : 'var(--danger-600)' }}>
                                         {deal.ai_score}
                                     </div>
-                                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                        / 100
-                                    </div>
+                                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>/ 100</div>
                                     {analysis && (
                                         <Link to={`/deals/${id}/analysis`} className="btn btn-secondary btn-sm" style={{ marginTop: '16px' }}>
                                             View Full Analysis →

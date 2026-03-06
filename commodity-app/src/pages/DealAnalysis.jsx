@@ -1,27 +1,65 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function DealAnalysis() {
     const { id } = useParams()
+    const navigate = useNavigate()
+    const { loading: authLoading } = useAuth()
     const [deal, setDeal] = useState(null)
     const [analysis, setAnalysis] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState(null)
 
-    useEffect(() => { loadData() }, [id])
+    useEffect(() => {
+        if (authLoading) return
+        loadData()
+    }, [id, authLoading])
 
     async function loadData() {
-        const [dealRes, analysisRes] = await Promise.all([
-            supabase.from('deals').select('*').eq('id', id).single(),
-            supabase.from('deal_analyses').select('*').eq('deal_id', id).order('created_at', { ascending: false }).limit(1),
-        ])
+        setLoading(true)
+        setLoadError(null)
 
-        setDeal(dealRes.data)
-        setAnalysis(analysisRes.data?.[0] || null)
-        setLoading(false)
+        try {
+            const [dealRes, analysisRes] = await Promise.all([
+                supabase.from('deals').select('*').eq('id', id).single(),
+                supabase.from('deal_analyses').select('*').eq('deal_id', id).order('created_at', { ascending: false }).limit(1),
+            ])
+
+            if (dealRes.error) {
+                if (dealRes.error.code === 'PGRST116' || dealRes.error.code === '42501') {
+                    navigate('/')
+                    return
+                }
+                throw dealRes.error
+            }
+
+            setDeal(dealRes.data)
+            setAnalysis(analysisRes.data?.[0] || null)
+        } catch (err) {
+            setLoadError(err.message || 'Failed to load analysis')
+        } finally {
+            setLoading(false)
+        }
     }
 
-    if (loading) return <div className="loading-spinner"><div className="spinner" /></div>
+    if (loading || authLoading) return <div className="loading-spinner"><div className="spinner" /></div>
+
+    if (loadError) {
+        return (
+            <div className="empty-state">
+                <div className="icon">⚠️</div>
+                <h3>Could not load analysis</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{loadError}</p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
+                    <button className="btn btn-primary" onClick={loadData}>Try Again</button>
+                    <Link to={`/deals/${id}`} className="btn btn-secondary">← Back to Deal</Link>
+                </div>
+            </div>
+        )
+    }
+
     if (!deal) return <div className="empty-state"><h3>Deal not found</h3></div>
     if (!analysis) return (
         <div className="empty-state">

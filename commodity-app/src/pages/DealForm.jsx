@@ -8,7 +8,7 @@ export default function DealForm() {
     const { id } = useParams()
     const isEdit = !!id
     const navigate = useNavigate()
-    const { user } = useAuth()
+    const { user, loading: authLoading } = useAuth()
     const toast = useToast()
 
     const [sources, setSources] = useState([])
@@ -43,10 +43,17 @@ export default function DealForm() {
     })
 
     useEffect(() => { if (user) loadSources() }, [user])
-    useEffect(() => { if (isEdit) loadDeal() }, [id])
+    useEffect(() => {
+        if (authLoading) return  // wait for auth before loading deal for edit
+        if (isEdit) loadDeal()
+    }, [id, authLoading])
 
     async function loadSources() {
-        const { data } = await supabase.from('sources').select('*').order('name')
+        const { data } = await supabase
+            .from('sources')
+            .select('id, name, reliability_rating')
+            .eq('user_id', user.id)
+            .order('name')
         setSources(data || [])
     }
 
@@ -57,7 +64,18 @@ export default function DealForm() {
             .eq('id', id)
             .single()
 
-        if (error || !data) {
+        if (error) {
+            if (error.code === 'PGRST116' || error.code === '42501') {
+                toast.error('Deal not found')
+                navigate('/')
+            } else {
+                toast.error('Failed to load deal. Please try again.')
+            }
+            setFetching(false)
+            return
+        }
+
+        if (!data) {
             toast.error('Deal not found')
             navigate('/')
             return
@@ -161,9 +179,11 @@ export default function DealForm() {
                 toast.success('Deal updated successfully!')
                 navigate(`/deals/${id}`)
             } else {
+                if (!user?.id) throw new Error('Not authenticated. Please log in again.')
                 payload.created_by = user.id
-                const { data, error } = await supabase.from('deals').insert(payload).select().single()
+                const { data, error } = await supabase.from('deals').insert(payload).select('id').single()
                 if (error) throw error
+                if (!data?.id) throw new Error('Failed to create deal')
                 toast.success('Deal created successfully!')
                 navigate(`/deals/${data.id}`)
             }
@@ -174,7 +194,7 @@ export default function DealForm() {
         }
     }
 
-    if (fetching) {
+    if (authLoading || fetching) {
         return <div className="loading-spinner"><div className="spinner" /></div>
     }
 
@@ -210,20 +230,23 @@ export default function DealForm() {
 
                             <div className="form-group">
                                 <label>Source/Contact <span className="required">*</span></label>
-                                <select
+                                <input
                                     className="form-control"
+                                    list="sources-datalist"
                                     name="source_name"
                                     value={form.source_name}
                                     onChange={handleChange}
+                                    placeholder={sources.length ? 'Select or type source name...' : 'Type source name...'}
                                     required
-                                >
-                                    <option value="">-- Select Source --</option>
+                                    autoComplete="off"
+                                />
+                                <datalist id="sources-datalist">
                                     {sources.map(s => (
                                         <option key={s.id} value={s.name}>
-                                            {s.name} ({s.reliability_rating}/10)
+                                            {s.reliability_rating}/10
                                         </option>
                                     ))}
-                                </select>
+                                </datalist>
                             </div>
 
                             <div className="form-group">
