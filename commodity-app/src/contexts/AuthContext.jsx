@@ -16,17 +16,17 @@ export function AuthProvider({ children }) {
     const loadedProfileId = useRef(null)
 
     useEffect(() => {
-        // No initialized.current guard — we intentionally let StrictMode
-        // clean up and recreate the subscription so it stays active.
+        // Safety net: if nothing resolves loading within 8 seconds, clear it.
+        // This prevents an infinite spinner if Supabase is unreachable.
+        const safetyTimer = setTimeout(() => setLoading(false), 8000)
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
+                clearTimeout(safetyTimer)
+
                 if (session?.user) {
-                    // Keep stable object reference when ID is unchanged.
-                    // A new reference would re-trigger useEffect([user?.id]) hooks.
                     setUser(prev => prev?.id === session.user.id ? prev : session.user)
 
-                    // Load profile only for events that change the user identity,
-                    // and only if getSession() hasn't already loaded it for this ID.
                     if (
                         (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') &&
                         loadedProfileId.current !== session.user.id
@@ -41,21 +41,17 @@ export function AuthProvider({ children }) {
                     loadedProfileId.current = null
                 }
 
-                // Always resolve the loading gate — this is what ProtectedRoute waits for
                 setLoading(false)
             }
         )
 
         // getSession() reads the session from localStorage immediately — faster
         // than waiting for an onAuthStateChange event on cold starts.
-        // loadedProfileId prevents a duplicate loadProfile() when SIGNED_IN
-        // also fires for the same user in the same render cycle.
         async function init() {
             try {
                 const { data: { session } } = await supabase.auth.getSession()
                 if (session?.user && loadedProfileId.current !== session.user.id) {
                     setUser(prev => prev?.id === session.user.id ? prev : session.user)
-                    // Set the ref BEFORE the await so onAuthStateChange sees it
                     loadedProfileId.current = session.user.id
                     const p = await loadProfile(session.user.id)
                     setProfile(p)
@@ -63,14 +59,17 @@ export function AuthProvider({ children }) {
             } catch (err) {
                 console.error('[Auth] init error:', err)
             } finally {
-                // Ensure loading is always cleared even if no session found
+                clearTimeout(safetyTimer)
                 setLoading(false)
             }
         }
 
         init()
 
-        return () => subscription.unsubscribe()
+        return () => {
+            clearTimeout(safetyTimer)
+            subscription.unsubscribe()
+        }
     }, [])
 
     async function loadProfile(userId) {
