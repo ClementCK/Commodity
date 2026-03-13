@@ -29,15 +29,18 @@ export default function Settings() {
             if (map.system_prompt) setSystemPrompt(map.system_prompt)
         }
         // Fallback: also sync to localStorage for Assistant.jsx to use
-        const local = localStorage.getItem('app_settings')
-        if (local) {
-            const parsed = JSON.parse(local)
-            if (!data?.length) {
+        try {
+            const local = localStorage.getItem('app_settings')
+            if (local && !data?.length) {
+                const parsed = JSON.parse(local)
                 if (parsed.ai_model) setAiModel(parsed.ai_model)
                 if (parsed.ai_temperature) setAiTemperature(parseFloat(parsed.ai_temperature))
                 if (parsed.ai_max_tokens) setAiMaxTokens(parseInt(parsed.ai_max_tokens))
                 if (parsed.system_prompt) setSystemPrompt(parsed.system_prompt)
             }
+        } catch {
+            // Corrupted localStorage — ignore and use defaults
+            localStorage.removeItem('app_settings')
         }
     }
 

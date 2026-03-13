@@ -9,39 +9,66 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null)
     const [profile, setProfile] = useState(null)
     const [loading, setLoading] = useState(true)
-    const initialized = useRef(false)
+
+    // Tracks which user ID's profile is already loaded/loading.
+    // Shared between getSession() and onAuthStateChange so neither
+    // fires a duplicate loadProfile() for the same user.
+    const loadedProfileId = useRef(null)
 
     useEffect(() => {
-        // Prevent double-init in React StrictMode
-        if (initialized.current) return
-        initialized.current = true
-
-        // onAuthStateChange is the single source of truth for auth state.
-        // INITIAL_SESSION fires immediately with the stored session (or null).
-        // This replaces a separate getSession() call and eliminates the race
-        // condition where both init() and SIGNED_IN ran concurrently.
+        // No initialized.current guard — we intentionally let StrictMode
+        // clean up and recreate the subscription so it stays active.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
                 if (session?.user) {
-                    // Keep stable object reference when ID is unchanged —
-                    // prevents useEffect([user?.id]) hooks from re-running unnecessarily
+                    // Keep stable object reference when ID is unchanged.
+                    // A new reference would re-trigger useEffect([user?.id]) hooks.
                     setUser(prev => prev?.id === session.user.id ? prev : session.user)
 
-                    // Only reload profile on events that change user identity.
-                    // TOKEN_REFRESHED only updates the JWT — name/role don't change.
-                    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+                    // Load profile only for events that change the user identity,
+                    // and only if getSession() hasn't already loaded it for this ID.
+                    if (
+                        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') &&
+                        loadedProfileId.current !== session.user.id
+                    ) {
+                        loadedProfileId.current = session.user.id
                         const p = await loadProfile(session.user.id)
                         setProfile(p)
                     }
                 } else {
                     setUser(null)
                     setProfile(null)
+                    loadedProfileId.current = null
                 }
 
-                // Always resolve the loading gate so ProtectedRoute can render pages
+                // Always resolve the loading gate — this is what ProtectedRoute waits for
                 setLoading(false)
             }
         )
+
+        // getSession() reads the session from localStorage immediately — faster
+        // than waiting for an onAuthStateChange event on cold starts.
+        // loadedProfileId prevents a duplicate loadProfile() when SIGNED_IN
+        // also fires for the same user in the same render cycle.
+        async function init() {
+            try {
+                const { data: { session } } = await supabase.auth.getSession()
+                if (session?.user && loadedProfileId.current !== session.user.id) {
+                    setUser(prev => prev?.id === session.user.id ? prev : session.user)
+                    // Set the ref BEFORE the await so onAuthStateChange sees it
+                    loadedProfileId.current = session.user.id
+                    const p = await loadProfile(session.user.id)
+                    setProfile(p)
+                }
+            } catch (err) {
+                console.error('[Auth] init error:', err)
+            } finally {
+                // Ensure loading is always cleared even if no session found
+                setLoading(false)
+            }
+        }
+
+        init()
 
         return () => subscription.unsubscribe()
     }, [])
