@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/Toast'
+import DealDocuments from '../components/DealDocuments'
 
 export default function DealDetail() {
     const { id } = useParams()
@@ -80,6 +81,15 @@ export default function DealDetail() {
     }
 
     async function handleDelete() {
+        // Clean up storage files before deleting the deal
+        const { data: docs } = await supabase
+            .from('deal_documents')
+            .select('storage_path')
+            .eq('deal_id', id)
+        if (docs?.length) {
+            await supabase.storage.from('deal-documents').remove(docs.map(d => d.storage_path))
+        }
+
         const { error } = await supabase.from('deals').delete().eq('id', id)
         if (error) {
             toast.error('Failed to delete deal')
@@ -244,6 +254,11 @@ export default function DealDetail() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Documents */}
+            <div style={{ marginTop: '24px' }}>
+                <DealDocuments dealId={id} />
             </div>
 
             {/* Delete confirmation modal */}
