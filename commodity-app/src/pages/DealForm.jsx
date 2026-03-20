@@ -3,6 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../components/Toast'
+import DealDocuments from '../components/DealDocuments'
+
+const ALLOWED_MIME = new Set([
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+const MAX_BYTES = 10 * 1024 * 1024
 
 export default function DealForm() {
     const { id } = useParams()
@@ -14,6 +22,7 @@ export default function DealForm() {
     const [sources, setSources] = useState([])
     const [loading, setLoading] = useState(false)
     const [fetching, setFetching] = useState(isEdit)
+    const [pendingFiles, setPendingFiles] = useState([])
 
     const [form, setForm] = useState({
         commodity_type: '',
@@ -117,6 +126,23 @@ export default function DealForm() {
         return d.toLocaleDateString()
     }
 
+    function handleFileQueue(file) {
+        if (!file) return
+        if (!ALLOWED_MIME.has(file.type)) {
+            toast.error('Only PDF and Word documents (.pdf, .doc, .docx) are allowed')
+            return
+        }
+        if (file.size > MAX_BYTES) {
+            toast.error('File must be smaller than 10 MB')
+            return
+        }
+        if (pendingFiles.some(f => f.name === file.name && f.size === file.size)) {
+            toast.error('This file is already in the queue')
+            return
+        }
+        setPendingFiles(prev => [...prev, file])
+    }
+
     function handleChange(e) {
         const { name, value } = e.target
         setForm(prev => {
@@ -185,6 +211,25 @@ export default function DealForm() {
                 if (error) throw error
                 if (!data?.id) throw new Error('Failed to create deal')
                 toast.success('Deal created successfully!')
+                // Upload any queued documents (failures are non-fatal)
+                for (const file of pendingFiles) {
+                    const storagePath = `${data.id}/${crypto.randomUUID()}-${file.name}`
+                    const { error: storErr } = await supabase.storage
+                        .from('deal-documents')
+                        .upload(storagePath, file, { upsert: false })
+                    if (storErr) {
+                        toast.error(`Could not upload "${file.name}"`)
+                        continue
+                    }
+                    await supabase.from('deal_documents').insert({
+                        deal_id: data.id,
+                        uploaded_by: user.id,
+                        file_name: file.name,
+                        storage_path: storagePath,
+                        file_size: file.size,
+                        mime_type: file.type,
+                    })
+                }
                 navigate(`/deals/${data.id}`)
             }
         } catch (err) {
@@ -447,6 +492,53 @@ export default function DealForm() {
                                 <textarea className="form-control" name="additional_notes" value={form.additional_notes} onChange={handleChange} placeholder="Any other important information..." />
                             </div>
                         </div>
+
+                        {/* Documents */}
+                        {isEdit ? (
+                            <div className="form-section">
+                                <DealDocuments dealId={id} />
+                            </div>
+                        ) : (
+                            <div className="form-section">
+                                <div className="form-section-title">📎 Documents (optional)</div>
+                                <div className="form-group">
+                                    <label
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                    >
+                                        + Attach File
+                                        <input
+                                            type="file"
+                                            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                            style={{ display: 'none' }}
+                                            onChange={e => { handleFileQueue(e.target.files?.[0]); e.target.value = '' }}
+                                        />
+                                    </label>
+                                    <div className="form-help">PDF or Word (.doc, .docx) — max 10 MB. Files upload when you save the deal.</div>
+                                </div>
+                                {pendingFiles.length > 0 && (
+                                    <ul style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {pendingFiles.map((file, i) => (
+                                            <li key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-inset)', borderRadius: 'var(--radius-md)' }}>
+                                                <span style={{ fontSize: '14px' }}>
+                                                    {file.type === 'application/pdf' ? '📄' : '📝'} {file.name}
+                                                    <span style={{ color: 'var(--text-secondary)', fontSize: '12px', marginLeft: '8px' }}>
+                                                        {file.size < 1024 * 1024
+                                                            ? `${(file.size / 1024).toFixed(1)} KB`
+                                                            : `${(file.size / (1024 * 1024)).toFixed(1)} MB`}
+                                                    </span>
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))}
+                                                >✕</button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
                             <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
